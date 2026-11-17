@@ -65,6 +65,9 @@ impl<WM> State<WM> {
         detect_theme_enabled: Arc<AtomicBool>,
         tx: UnboundedSender<Message>,
     ) -> Self {
+        // The layout is built below, so the scales must be known before it.
+        crate::layout::set_height_scale(config_manager.as_ref().key_height_scale());
+        crate::layout::set_spacing_scale(config_manager.as_ref().key_spacing_scale());
         let config = config_manager.as_ref();
         let store = Store::new();
         let portrait = false;

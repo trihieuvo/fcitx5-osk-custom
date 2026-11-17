@@ -107,6 +107,7 @@ pub struct RangeDesc<T> {
     init_value: fn(&dyn StateExtractor) -> T,
     min_value: fn(&dyn StateExtractor) -> T,
     max_value: fn(&dyn StateExtractor) -> T,
+    step: fn(&dyn StateExtractor) -> T,
     format: fn(&dyn StateExtractor, T) -> String,
     is_enabled: fn(&dyn StateExtractor) -> bool,
     check: fn(&dyn StateExtractor, value: T) -> bool,
@@ -141,6 +142,10 @@ where
 
     pub fn max_value(&self, state: &dyn StateExtractor) -> T {
         (self.max_value)(state)
+    }
+
+    pub fn step(&self, state: &dyn StateExtractor) -> T {
+        (self.step)(state)
     }
 
     pub fn format(&self, state: &dyn StateExtractor, t: T) -> String {
@@ -480,6 +485,7 @@ impl ConfigState {
                         init_value: |state| state.keyboard_window_size().width.val(),
                         min_value: |_state| 360.,
                         max_value: |state| state.screen_size().width,
+                        step: |_state| 1.,
                         format: |_state, v| format!("{:.1}", v),
                         is_enabled: |_state| true,
                         check: |state, value| value >= 360. && value <= state.screen_size().width,
@@ -498,12 +504,63 @@ impl ConfigState {
                     should_display: default_should_display,
                 },
                 Field {
+                    name: "Key height scale",
+                    id: "key_height_scale",
+                    typ: RangeDesc::<f32> {
+                        init_value: |state| state.config().key_height_scale(),
+                        min_value: |_state| 0.5,
+                        max_value: |_state| 2.,
+                        step: |_state| 0.05,
+                        format: |_state, v| format!("{:.2}", v),
+                        is_enabled: |_state| true,
+                        check: |_state, value| (0.5..=2.).contains(&value),
+                        on_changed: |value| {
+                            if let Ok(v) = value.parse::<f32>() {
+                                Message::from(UpdateConfigEvent::KeyHeightScale(v))
+                            } else {
+                                KeyboardNotification::Error(Arc::new(anyhow::anyhow!(
+                                    "{value} is not a f32"
+                                )))
+                                .into()
+                            }
+                        },
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
+                    name: "Key spacing scale",
+                    id: "key_spacing_scale",
+                    typ: RangeDesc::<f32> {
+                        init_value: |state| state.config().key_spacing_scale(),
+                        min_value: |_state| 0.5,
+                        max_value: |_state| 2.,
+                        step: |_state| 0.05,
+                        format: |_state, v| format!("{:.2}", v),
+                        is_enabled: |_state| true,
+                        check: |_state, value| (0.5..=2.).contains(&value),
+                        on_changed: |value| {
+                            if let Ok(v) = value.parse::<f32>() {
+                                Message::from(UpdateConfigEvent::KeySpacingScale(v))
+                            } else {
+                                KeyboardNotification::Error(Arc::new(anyhow::anyhow!(
+                                    "{value} is not a f32"
+                                )))
+                                .into()
+                            }
+                        },
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
                     name: "Key corner radius",
                     id: "key_border_radius",
                     typ: RangeDesc::<f32> {
                         init_value: |_state| crate::widget::button::border_radius(),
                         min_value: |_state| 0.,
                         max_value: |_state| 30.,
+                        step: |_state| 1.,
                         format: |_state, v| format!("{:.1}", v),
                         is_enabled: |_state| true,
                         check: |_state, value| (0. ..=30.).contains(&value),
@@ -613,6 +670,7 @@ impl ConfigState {
                         init_value: |state| state.config().auto_hide_delay().as_millis() as f32,
                         min_value: |_state| 0.,
                         max_value: |_state| 2000.,
+                        step: |_state| 1.,
                         format: |_state, v| format!("{:.0}", v),
                         is_enabled: |state| state.config().auto_hide_on_blur(),
                         check: |_state, value| (0. ..=2000.).contains(&value),
@@ -809,6 +867,22 @@ impl ConfigState {
                 set_theme,
                 |_| Message::from(ThemeEvent::Updated)
             },
+            @KeyHeightScale => {
+                config_eq!(key_height_scale),
+                set_key_height_scale,
+                |v| {
+                    crate::layout::set_height_scale(v);
+                    Message::from(WindowManagerEvent::RelayoutKeyboard)
+                }
+            },
+            @KeySpacingScale => {
+                config_eq!(key_spacing_scale),
+                set_key_spacing_scale,
+                |v| {
+                    crate::layout::set_spacing_scale(v);
+                    Message::from(WindowManagerEvent::RelayoutKeyboard)
+                }
+            },
             @KeyBorderRadius => {
                 config_eq!(key_border_radius),
                 set_key_border_radius,
@@ -978,6 +1052,8 @@ pub enum UpdateConfigEvent {
     IndicatorDisplay(IndicatorDisplay),
     Theme(String),
     KeyBorderRadius(f32),
+    KeyHeightScale(f32),
+    KeySpacingScale(f32),
     DarkTheme(String),
     LightTheme(String),
     PreferredOutputName(String),

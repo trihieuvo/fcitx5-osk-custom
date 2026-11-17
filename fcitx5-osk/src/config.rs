@@ -61,6 +61,16 @@ pub struct Config {
     #[serde(default = "default_theme")]
     theme: String,
 
+    /// Global factor of the height of keys, 1.0 keeps the layout as it is.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default = "default_scale")]
+    key_height_scale: f32,
+
+    /// Global factor of the space between keys and rows, 1.0 keeps the layout as it is.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default = "default_scale")]
+    key_spacing_scale: f32,
+
     /// Corner radius of keys and buttons.
     #[getset(get_copy = "pub", set = "pub")]
     #[serde(default = "default_key_border_radius")]
@@ -235,6 +245,10 @@ fn default_key_border_radius() -> f32 {
 
 fn default_auto_hide_delay() -> Duration {
     Duration::from_millis(150)
+}
+
+fn default_scale() -> f32 {
+    1.
 }
 
 fn default_true() -> bool {

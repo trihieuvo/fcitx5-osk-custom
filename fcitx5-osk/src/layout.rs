@@ -12,7 +12,7 @@ use iced::{
         button::{DEFAULT_PADDING, Style as ButtonStyle},
         container::Style as ContainerStyle,
         scrollable::{Direction, Scrollbar},
-        text::Shaping,
+        text::{Shaping, Style as TextStyle},
         text_input::TextInput,
     },
     window::Id,
@@ -23,6 +23,7 @@ use serde::{
     de::{self, Error, Unexpected, Visitor},
 };
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::{
     collections::HashMap,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
@@ -86,6 +87,53 @@ impl Sub<u32> for KLength {
 
     fn sub(self, rhs: u32) -> Self::Output {
         Self(self.0 - rhs as f32)
+    }
+}
+
+static HEIGHT_SCALE_BITS: AtomicU32 = AtomicU32::new(1.0f32.to_bits());
+static SPACING_SCALE_BITS: AtomicU32 = AtomicU32::new(1.0f32.to_bits());
+
+/// Global factor applied to the heights of keys and rows, see `key_height_scale` in the config.
+pub fn height_scale() -> f32 {
+    f32::from_bits(HEIGHT_SCALE_BITS.load(Ordering::Relaxed))
+}
+
+/// Global factor applied to the spacing between keys and rows, see `key_spacing_scale`.
+pub fn spacing_scale() -> f32 {
+    f32::from_bits(SPACING_SCALE_BITS.load(Ordering::Relaxed))
+}
+
+pub fn set_height_scale(scale: f32) {
+    let scale = if scale.is_finite() { scale } else { 1. };
+    HEIGHT_SCALE_BITS.store(scale.clamp(0.1, 5.).to_bits(), Ordering::Relaxed);
+}
+
+pub fn set_spacing_scale(scale: f32) {
+    let scale = if scale.is_finite() { scale } else { 1. };
+    SPACING_SCALE_BITS.store(scale.clamp(0., 5.).to_bits(), Ordering::Relaxed);
+}
+
+impl Mul<f32> for KLength {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl Mul<KLength> for f32 {
+    type Output = KLength;
+
+    fn mul(self, rhs: KLength) -> Self::Output {
+        KLength(self * rhs.0)
+    }
+}
+
+impl Mul<KLength> for &f32 {
+    type Output = KLength;
+
+    fn mul(self, rhs: KLength) -> Self::Output {
+        KLength(*self * rhs.0)
     }
 }
 
@@ -258,7 +306,7 @@ pub struct KeyAreaLayout {
     name: String,
     /// vertical space between rows
     #[serde(alias = "spacing", default = "KeyAreaLayout::default_spacing_u")]
-    spacing_u: u32,
+    spacing_u: f32,
     elements: Vec<KeyRow>,
     #[getset(get = "pub")]
     key_mappings: HashMap<String, KeyId>,
@@ -297,8 +345,8 @@ pub struct KeyAreaLayout {
 }
 
 impl KeyAreaLayout {
-    fn default_spacing_u() -> u32 {
-        1
+    fn default_spacing_u() -> f32 {
+        1.
     }
 
     fn default_primary_text_size_u() -> u32 {
@@ -321,16 +369,21 @@ impl KeyAreaLayout {
         6
     }
 
-    pub fn width_u(&self) -> u32 {
-        self.elements.iter().map(KeyRow::width_u).max().unwrap_or(0)
+    /// Vertical space between rows, in units.
+    fn spacing(&self) -> f32 {
+        self.spacing_u * spacing_scale()
     }
 
-    pub fn height_u(&self) -> u32 {
+    pub fn width_u(&self) -> f32 {
+        self.elements.iter().map(KeyRow::width_u).fold(0., f32::max)
+    }
+
+    pub fn height_u(&self) -> f32 {
         if self.elements.is_empty() {
-            return 0;
+            return 0.;
         }
-        let mut height_u = self.spacing_u * (self.elements.len() as u32 - 1);
-        height_u += self.elements.iter().map(KeyRow::height_u).sum::<u32>();
+        let mut height_u = self.spacing() * (self.elements.len() - 1) as f32;
+        height_u += self.elements.iter().map(KeyRow::height_u).sum::<f32>();
         height_u
     }
 
@@ -344,7 +397,7 @@ impl KeyAreaLayout {
         state: &'b dyn StateExtractor,
     ) -> impl Into<Element<'b, Message>> {
         let mut col = Column::new()
-            .spacing(self.spacing_u * unit)
+            .spacing(self.spacing() * unit)
             .align_x(Horizontal::Center);
 
         for key_row in &self.elements {
@@ -407,29 +460,33 @@ impl<'de> Deserialize<'de> for KeyId {
 #[derive(Deserialize)]
 pub struct KeyRow {
     #[serde(alias = "height")]
-    height_u: u32,
+    height_u: f32,
     #[serde(alias = "spacing")]
     /// horizontal space between elements
-    spacing_u: u32,
+    spacing_u: f32,
     elements: Vec<KeyRowElement>,
 }
 
 impl KeyRow {
-    fn width_u(&self) -> u32 {
+    fn spacing(&self) -> f32 {
+        self.spacing_u * spacing_scale()
+    }
+
+    fn width_u(&self) -> f32 {
         if self.elements.is_empty() {
-            return 0;
+            return 0.;
         }
-        let mut width_u = self.spacing_u * (self.elements.len() as u32 - 1);
+        let mut width_u = self.spacing() * (self.elements.len() - 1) as f32;
         width_u += self
             .elements
             .iter()
             .map(KeyRowElement::width_u)
-            .sum::<u32>();
+            .sum::<f32>();
         width_u
     }
 
-    fn height_u(&self) -> u32 {
-        self.height_u
+    fn height_u(&self) -> f32 {
+        self.height_u * height_scale()
     }
 
     fn to_element<'b>(
@@ -438,27 +495,27 @@ impl KeyRow {
         state: &'b dyn StateExtractor,
     ) -> impl Into<Element<'b, Message>> {
         let mut row = Row::new()
-            .spacing(self.spacing_u * unit)
+            .spacing(self.spacing() * unit)
             .align_y(Vertical::Center)
-            .height(self.height_u * unit);
+            .height(self.height_u() * unit);
         for element in &self.elements {
-            row = row.push(element.to_element(self.height_u, unit, state));
+            row = row.push(element.to_element(self.height_u(), unit, state));
         }
         row
     }
 }
 
 pub enum KeyRowElement {
-    Padding(u32),
+    Padding(f32),
     Key {
-        width_u: u32,
-        height_u: Option<u32>,
+        width_u: f32,
+        height_u: Option<f32>,
         name: Arc<str>,
     },
 }
 
 impl KeyRowElement {
-    fn width_u(&self) -> u32 {
+    fn width_u(&self) -> f32 {
         match self {
             KeyRowElement::Padding(n) => *n,
             KeyRowElement::Key {
@@ -471,7 +528,7 @@ impl KeyRowElement {
 
     fn to_element<'b>(
         &self,
-        max_height_u: u32,
+        max_height_u: f32,
         unit: KLength,
         state: &'b dyn StateExtractor,
     ) -> Element<'b, Message> {
@@ -482,7 +539,7 @@ impl KeyRowElement {
                 height_u,
                 name,
             } => {
-                let mut height_u = height_u.unwrap_or(max_height_u);
+                let mut height_u = height_u.map_or(max_height_u, |h| h * height_scale());
                 if height_u > max_height_u {
                     tracing::warn!(
                         "key[{name}] is too high: {height_u}, updated to: {}",
@@ -504,6 +561,12 @@ impl KeyRowElement {
     }
 }
 
+/// Parses a length in units. Fractions such as `12.5` are allowed.
+fn parse_unit(s: &str, allow_zero: bool) -> Option<f32> {
+    let n: f32 = s.trim().parse().ok()?;
+    (n.is_finite() && (n > 0. || (allow_zero && n == 0.))).then_some(n)
+}
+
 impl<'de> Deserialize<'de> for KeyRowElement {
     fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
     where
@@ -515,31 +578,31 @@ impl<'de> Deserialize<'de> for KeyRowElement {
         let typ = items.next().unwrap_or("");
         if typ == "p" {
             let width_u = items.next().unwrap_or("1");
-            match width_u.parse() {
-                Ok(n) => Ok(KeyRowElement::Padding(n)),
-                Err(_) => Err(Error::invalid_value(
+            match parse_unit(width_u, true) {
+                Some(n) => Ok(KeyRowElement::Padding(n)),
+                None => Err(Error::invalid_value(
                     Unexpected::Str(width_u),
-                    &"it should end with an empty string or a u32 integer",
+                    &"it should end with an empty string or a non-negative number",
                 )),
             }
         } else if typ.starts_with("k") {
             let width_u = items.next().unwrap_or("8");
-            let width_u = match width_u.parse() {
-                Ok(n) => n,
-                Err(_) => {
+            let width_u = match parse_unit(width_u, false) {
+                Some(n) => n,
+                None => {
                     return Err(Error::invalid_value(
                         Unexpected::Str(width_u),
-                        &"width should be empty or a u32 integer",
+                        &"width should be empty or a positive number",
                     ));
                 }
             };
             let height_u = items
                 .next()
                 .map(|s| {
-                    s.parse().map_err(|_| {
+                    parse_unit(s, false).ok_or_else(|| {
                         Error::invalid_value(
                             Unexpected::Str(s),
-                            &"height should be empty or a u32 integer",
+                            &"height should be empty or a positive number",
                         )
                     })
                 })
@@ -1033,7 +1096,54 @@ impl ToolbarLayout {
 
 pub struct SettingLayout;
 
+/// Group a setting into a section of the settings page.
+fn setting_section(id: &str) -> usize {
+    match id {
+        "width" | "key_height_scale" | "key_spacing_scale" | "key_border_radius" | "dark_theme"
+        | "light_theme" | "placement" | "indicator_display" | "preferred_output_name" => 0,
+        "manual_mode" | "session_manual_mode" | "ignore_fcitx_show" => 1,
+        "auto_show_on_focus" | "auto_hide_on_blur" | "auto_hide_delay" | "auto_show_touch_only" => 2,
+        _ => 3,
+    }
+}
+
+const SETTING_SECTIONS: [&str; 4] = [
+    "Size & appearance",
+    "Behavior",
+    "Auto show / hide",
+    "Toolbar & actions",
+];
+
 impl SettingLayout {
+    fn field_cell<'b>(
+        state: &'b dyn StateExtractor,
+        field: &'b Field,
+        unit: KLength,
+        text_size: KLength,
+        height: KLength,
+    ) -> Element<'b, Message> {
+        Row::new()
+            .spacing(2 * unit)
+            .align_y(Vertical::Center)
+            .push(
+                Container::new(
+                    Text::new(field.name())
+                        .size(text_size)
+                        .shaping(Shaping::Advanced)
+                        .align_x(Horizontal::Left),
+                )
+                .center_y(height)
+                .width(Length::FillPortion(2)),
+            )
+            .push(
+                Container::new(field_value_element(state, field, unit, text_size, height))
+                    .center_y(height)
+                    .width(Length::FillPortion(3)),
+            )
+            .width(Length::Fill)
+            .into()
+    }
+
     pub fn to_element<'a, 'b>(
         &'a self,
         params: &'a ToElementCommonParams<'b>,
@@ -1042,34 +1152,73 @@ impl SettingLayout {
     ) -> Element<'b, Message> {
         let state = params.state;
         let text_size = font_size_u * unit;
-        let mut name_column = Column::new().spacing(2 * unit);
-        let mut value_column = Column::new().spacing(2 * unit).width(Length::Fill);
+        let mut sections: Vec<Vec<&'b Field>> = vec![vec![]; SETTING_SECTIONS.len()];
         for field in state.updatable_fields() {
-            if !field.should_display(state) {
+            if field.should_display(state) {
+                sections[setting_section(field.id())].push(field);
+            }
+        }
+
+        let mut page = Column::new().spacing(2 * unit).width(Length::Fill);
+        for (title, fields) in SETTING_SECTIONS.iter().zip(sections) {
+            if fields.is_empty() {
                 continue;
             }
-            let row_num = field_row_num(state, field);
-            let height = (text_size + 5 * unit) * row_num;
-            name_column = name_column.push(
+            page = page.push(
                 Container::new(
-                    Text::new(field.name())
+                    Text::new(*title)
                         .size(text_size)
                         .shaping(Shaping::Advanced)
-                        .align_x(Horizontal::Left),
+                        .style(|theme: &Theme| TextStyle {
+                            color: Some(theme.palette().primary),
+                        }),
                 )
-                .center_y(height),
+                .padding(Padding::new(0.).top(unit.0)),
             );
-            value_column = value_column.push(
-                Container::new(field_value_element(state, field, unit, text_size, height))
-                    .center_y(height),
-            );
+            page = page.push(iced::widget::rule::horizontal(1));
+            let mut pending: Option<&'b Field> = None;
+            for field in fields {
+                let rows = field_row_num(state, field);
+                // list editors need the full width, everything else shares a line in pairs
+                if rows > 1 && matches!(field.typ(), FieldType::MultiSelectionString(_)) {
+                    if let Some(p) = pending.take() {
+                        let h = (text_size + 5 * unit) * field_row_num(state, p);
+                        page = page.push(Self::field_cell(state, p, unit, text_size, h));
+                    }
+                    let h = (text_size + 5 * unit) * rows;
+                    page = page.push(Self::field_cell(state, field, unit, text_size, h));
+                    continue;
+                }
+                match pending.take() {
+                    None => pending = Some(field),
+                    Some(left) => {
+                        let h = (text_size + 5 * unit)
+                            * field_row_num(state, left).max(rows);
+                        page = page.push(
+                            Row::new()
+                                .spacing(4 * unit)
+                                .width(Length::Fill)
+                                .push(Self::field_cell(state, left, unit, text_size, h))
+                                .push(Self::field_cell(state, field, unit, text_size, h)),
+                        );
+                    }
+                }
+            }
+            if let Some(left) = pending {
+                let h = (text_size + 5 * unit) * field_row_num(state, left);
+                page = page.push(
+                    Row::new()
+                        .spacing(4 * unit)
+                        .width(Length::Fill)
+                        .push(Self::field_cell(state, left, unit, text_size, h))
+                        .push(Space::new().width(Length::Fill)),
+                );
+            }
         }
         Container::new(
             Scrollable::with_direction(
                 Row::new()
-                    .push(name_column)
-                    .push(Column::new().width(2 * unit))
-                    .push(value_column)
+                    .push(page)
                     // don't overlap with the scrollbar
                     .push(Column::new().width(2 * unit)),
                 Direction::Vertical(Scrollbar::new().width(unit).scroller_width(unit).spacing(2)),
@@ -1257,6 +1406,7 @@ where
             let min_value = self.min_value(state);
             let max_value = self.max_value(state);
             let key = field.id();
+            let step = self.step(state);
             let slider = Slider::new(min_value..=max_value, cur_value, move |v| {
                 if self.check(state, v) {
                     Message::from(UpdateConfigEvent::ChangeTempText {
@@ -1273,6 +1423,7 @@ where
                     .into()
                 }
             })
+            .step(step)
             .height(text_size)
             .style(widget::slider_style_cb(text_size))
             .on_release(Message::from(UpdateConfigEvent::SubmitTempText {
@@ -1584,32 +1735,32 @@ mod tests {
         toml::Value::String(s.to_string()).try_into().unwrap()
     }
 
+    fn key(s: &str) -> (f32, Option<f32>) {
+        match parse(s) {
+            KeyRowElement::Key {
+                width_u, height_u, ..
+            } => (width_u, height_u),
+            KeyRowElement::Padding(_) => panic!("{s} is not a key"),
+        }
+    }
+
     #[test]
     fn key_row_element_with_width_and_height() {
-        assert!(matches!(
-            parse("k1:12:2"),
-            KeyRowElement::Key {
-                width_u: 12,
-                height_u: Some(2),
-                ..
-            }
-        ));
-        assert!(matches!(
-            parse("k1:12"),
-            KeyRowElement::Key {
-                width_u: 12,
-                height_u: None,
-                ..
-            }
-        ));
-        assert!(matches!(
-            parse("k1"),
-            KeyRowElement::Key {
-                width_u: 8,
-                height_u: None,
-                ..
-            }
-        ));
-        assert!(matches!(parse("p:3"), KeyRowElement::Padding(3)));
+        assert_eq!(key("k1:12:2"), (12., Some(2.)));
+        assert_eq!(key("k1:12.5:1.5"), (12.5, Some(1.5)));
+        assert_eq!(key("k1:12"), (12., None));
+        assert_eq!(key("k1"), (8., None));
+        assert!(matches!(parse("p:3"), KeyRowElement::Padding(n) if n == 3.));
+        assert!(matches!(parse("p:0.5"), KeyRowElement::Padding(n) if n == 0.5));
+    }
+
+    #[test]
+    fn invalid_lengths_are_rejected() {
+        for s in [
+            "k1:0", "k1:-2", "k1:abc", "k1:8:0", "k1:inf", "p:-1", "p:nan",
+        ] {
+            let res: Result<KeyRowElement, _> = toml::Value::String(s.to_string()).try_into();
+            assert!(res.is_err(), "{s} should be rejected");
+        }
     }
 }

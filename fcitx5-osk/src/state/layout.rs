@@ -54,7 +54,7 @@ impl LayoutState {
 
     fn unit_within(&self, width: KLength) -> KLength {
         // plus two units of padding
-        let width_u = self.key_area_layout.width_u() + 2;
+        let width_u = self.key_area_layout.width_u() + 2.;
 
         width / width_u
     }
@@ -95,6 +95,11 @@ impl LayoutState {
 
     pub fn font_size(&self) -> KLength {
         self.unit * self.key_area_layout.primary_text_size_u()
+    }
+
+    /// Recalculates the size, e.g. after the global key scales are changed.
+    pub fn recalculate(&mut self) {
+        self.calculate_size();
     }
 
     pub fn update_width(&mut self, width: KLength) {

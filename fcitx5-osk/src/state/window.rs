@@ -765,6 +765,17 @@ where
         }
     }
 
+    fn relayout_keyboard(&mut self) -> Task<WM::Message> {
+        let old_size = self.keyboard_window_size().to_iced_size();
+        self.layout.recalculate();
+        let new_size = self.keyboard_window_size().to_iced_size();
+        if new_size != old_size {
+            self.keyboard_window_state.resize(&mut self.wm, new_size)
+        } else {
+            Message::from_nothing()
+        }
+    }
+
     fn update_width(&mut self, width: KLength) -> Task<WM::Message> {
         let max_width = self.wm.screen_size().width.into();
         let portrait = self.is_portrait();
@@ -1058,6 +1069,7 @@ where
                 self.update_indicator_display(indicator_display)
             }
             WindowManagerEvent::UpdateWidth(width) => self.update_width(width),
+            WindowManagerEvent::RelayoutKeyboard => self.relayout_keyboard(),
             WindowManagerEvent::UpdatePreferredOutputName(name) => {
                 tracing::debug!("Set preferred name: {name}");
                 self.wm.set_preferred_output_name(&name);
@@ -1108,6 +1120,8 @@ pub enum WindowManagerEvent {
     UpdatePlacement(Placement),
     UpdateIndicatorDisplay(IndicatorDisplay),
     UpdateWidth(KLength),
+    /// Recalculate the size of the keyboard, e.g. after the key scales are changed.
+    RelayoutKeyboard,
     UpdatePreferredOutputName(String),
     OutputChanged,
 }
