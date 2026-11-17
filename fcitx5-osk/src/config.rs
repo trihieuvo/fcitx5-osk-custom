@@ -134,6 +134,18 @@ pub struct Config {
     #[serde(default)]
     ignore_fcitx_show: bool,
 
+    /// Open the keyboard when Fcitx 5 asks for it (an input field gets focus), even if manual
+    /// mode or `ignore_fcitx_show` is on.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default)]
+    auto_show_on_focus: bool,
+
+    /// With `auto_show_on_focus`, only open the keyboard if the latest input came from a
+    /// touchscreen. It needs read access to `/dev/input/event*`.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default = "default_true")]
+    auto_show_touch_only: bool,
+
     /// Override the builtin landscape layout globally.
     #[getset(get = "pub", set = "pub")]
     #[serde(default)]
@@ -207,6 +219,10 @@ fn default_hide_delay() -> Duration {
 
 fn default_key_border_radius() -> f32 {
     crate::widget::button::DEFAULT_BORDER_RADIUS
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_theme() -> String {

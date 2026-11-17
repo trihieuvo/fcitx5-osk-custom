@@ -243,6 +243,11 @@ impl<WM> Keyboard<WM> {
         } = async_state;
 
         fcitx5_osk_service_handle.set_manual_mode(config_manager.as_ref().manual_mode(), true);
+        if config_manager.as_ref().auto_show_on_focus()
+            && config_manager.as_ref().auto_show_touch_only()
+        {
+            crate::input_activity::ensure_started();
+        }
         let state = State::new(
             config_manager,
             wm,
@@ -448,8 +453,17 @@ where
                         // A show while the keyboard is already open cancels a pending Fcitx
                         // hide. Ignore Fcitx Show only blocks a show that would open it.
                         let opened = self.state.window_manager().is_keyboard_opened();
-                        if !self.state.active_manual_mode()
-                            && (opened || !self.state.config().ignore_fcitx_show())
+                        let config = self.state.config();
+                        // An input field got focus. Open the keyboard if the user asked for
+                        // it, optionally only when the latest input was a touch.
+                        let auto_show = config.auto_show_on_focus()
+                            && (!config.auto_show_touch_only()
+                                || crate::input_activity::touched_within(
+                                    std::time::Duration::from_secs(2),
+                                ));
+                        if (!self.state.active_manual_mode()
+                            && (opened || !config.ignore_fcitx_show()))
+                            || auto_show
                         {
                             task = task.chain(self.state.window_manager_mut().open_keyboard());
                         }

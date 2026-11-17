@@ -3,3 +3,4 @@
 /build
 .env
 CLAUDE.md
+.plans/

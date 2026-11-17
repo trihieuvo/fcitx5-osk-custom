@@ -19,6 +19,7 @@ mod config;
 mod custom_action;
 mod dbus;
 mod font;
+mod input_activity;
 mod key_set;
 mod layout;
 mod misc;

@@ -17,6 +17,7 @@ getset.workspace = true
 iced.workspace = true
 serde.workspace = true
 tokio.workspace = true
+evdev.workspace = true
 toml.workspace = true
 tracing.workspace = true
 xkeysym.workspace = true

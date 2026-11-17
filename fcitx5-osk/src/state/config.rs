@@ -584,6 +584,28 @@ impl ConfigState {
                     should_display: default_should_display,
                 },
                 Field {
+                    name: "Auto show on focus",
+                    id: "auto_show_on_focus",
+                    typ: BoolDesc {
+                        cur_value: |state| state.config().auto_show_on_focus(),
+                        is_enabled: |_state| true,
+                        on_changed: |_, v| Message::from(UpdateConfigEvent::AutoShowOnFocus(v)),
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
+                    name: "Auto show: touch only",
+                    id: "auto_show_touch_only",
+                    typ: BoolDesc {
+                        cur_value: |state| state.config().auto_show_touch_only(),
+                        is_enabled: |state| state.config().auto_show_on_focus(),
+                        on_changed: |_, v| Message::from(UpdateConfigEvent::AutoShowTouchOnly(v)),
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
                     name: "Quick Action Bar",
                     id: "quick_action_bar_state",
                     typ: OwnedEnumDesc::<QuickActionBarState> {
@@ -771,6 +793,26 @@ impl ConfigState {
                 set_ignore_fcitx_show,
                 |_v| Message::Nothing
             },
+            @AutoShowOnFocus => {
+                config_eq!(auto_show_on_focus),
+                set_auto_show_on_focus,
+                |v| {
+                    if v {
+                        crate::input_activity::ensure_started();
+                    }
+                    Message::Nothing
+                }
+            },
+            @AutoShowTouchOnly => {
+                config_eq!(auto_show_touch_only),
+                set_auto_show_touch_only,
+                |v| {
+                    if v {
+                        crate::input_activity::ensure_started();
+                    }
+                    Message::Nothing
+                }
+            },
             @QuickActionBarState => {
                 config_eq!(quick_action_bar_state),
                 set_quick_action_bar_state,
@@ -895,6 +937,8 @@ pub enum UpdateConfigEvent {
     },
     ManualMode(bool),
     IgnoreFcitxShow(bool),
+    AutoShowOnFocus(bool),
+    AutoShowTouchOnly(bool),
     QuickActionBarState(QuickActionBarState),
     CustomActions(Arc<Vec<String>>),
 }
