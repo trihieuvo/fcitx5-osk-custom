@@ -72,7 +72,27 @@ Creating a keyboard with evdev requires root privileges, and it may not be safe 
 
 ### Arch Linux
 
-Packages are available in the AUR: [fcitx5-osk-git](https://aur.archlinux.org/packages/fcitx5-osk-git) and [fcitx5-osk-kwin-launcher-git](https://aur.archlinux.org/packages/fcitx5-osk-kwin-launcher-git).
+This fork is not in the AUR. Either download the prebuilt packages from the [Releases](https://github.com/trihieuvo/fcitx5-osk-custom/releases) page, or build them from source with the PKGBUILD in this repository.
+
+Both packages `provide` and `conflict` with the original `fcitx5-osk-git` and `fcitx5-osk-kwin-launcher-git`, so pacman will offer to replace them.
+
+* Prebuilt packages (x86_64)
+
+```bash
+# download both .pkg.tar.zst files from the latest release, then
+sudo pacman -U fcitx5-osk-custom-*-x86_64.pkg.tar.zst fcitx5-osk-custom-kwin-launcher-*-x86_64.pkg.tar.zst
+```
+
+* Build from source
+
+```bash
+git clone https://github.com/trihieuvo/fcitx5-osk-custom
+cd fcitx5-osk-custom/pkg/archlinux
+makepkg -s
+sudo pacman -U fcitx5-osk-custom-*-x86_64.pkg.tar.zst fcitx5-osk-custom-kwin-launcher-*-x86_64.pkg.tar.zst
+```
+
+`fcitx5-osk-custom-kwin-launcher` is only needed to show the keyboard from KWin (touch, lock screen). After installing, enable the key helper, select the launcher in System Settings and log out and in again (see [Usage](#usage)).
 
 ### Manual
 
@@ -144,7 +164,7 @@ CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts --loc
 A key event from a keyboard of evdev will make `fcitx5` to hide a virtual keyboard. If the indicator is set to be `AlwaysOff`, and you want to open the keyboard. You can use this command.
 
 ```bash
-fcitx5-osk force-show
+fcitx5-osk-custom force-show
 ```
 
 Or you can click "Fcitx 5 Osk" in the application menu directly. You can add a quick launcher in the panel too.
