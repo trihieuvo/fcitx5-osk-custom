@@ -21,6 +21,8 @@ Fcitx 5 Osk is an on-screen keyboard designed to work with Fcitx 5. It provides 
 * request password
 <video src="https://github.com/user-attachments/assets/a822b556-18f0-4d8d-a197-6b9a4e060db4"></video>
 
+This is a personal fork with extra options and the `osaka-jade` theme, based on [fortime/fcitx5-osk](https://github.com/fortime/fcitx5-osk) (MIT, Copyright (c) 2024 fortime).
+
 See [CHANGELOG.md](CHANGELOG.md) for changes since `0.1.0`.
 
 ## Features
@@ -33,6 +35,10 @@ See [CHANGELOG.md](CHANGELOG.md) for changes since `0.1.0`.
 * Support theming.
 * Support dock and float mode.
 * Support manual mode, a quick action bar, combo mode, repeat actions, and custom actions.
+* Hold BackSpace, Delete or an arrow key to repeat it.
+* Settings page with sliders for the window width, key height scale, key spacing scale and key corner radius.
+* Optionally show the keyboard when a text field gets focus and hide it when the focus is lost (`auto_show_on_focus`, `auto_hide_on_blur`, `auto_hide_delay`, `auto_show_touch_only`). With `auto_show_touch_only`, which is on by default, only touch input triggers it. This needs read access to `/dev/input` (the `input` group).
+* Restore point: the Backup section of the settings saves the current values to `restore-point.toml` beside the config file. A restore icon appears next to a slider or toggle that differs from it, and `Restore all` brings them all back.
 
 ## Fcitx 5 Osk Kwin Launcher
 
@@ -180,7 +186,7 @@ spacing = 1
 height = 6
 # The space between each element of the row.
 spacing = 1
-# There are two kinds of element in a row: key and padding. A key is a name starting with 'k' and a padding is 'p'. You can specify the width of the element with ':number'. By default, the width of a key is 8, and the width of a padding is 1.
+# There are two kinds of element in a row: key and padding. A key is a name starting with 'k' and a padding is 'p'. You can specify the width of the element with ':number', and the height of a key with another ':number'. Numbers can be decimals, e.g. "k21:12.5:1.5" or "p:0.5". By default, the width of a key is 8, and the width of a padding is 1.
 elements = ["p:3", "k21", "k22", "k23", "k24", "k25", "k26", "k27", "k28", "k29:12", "p:3"]
 
 # Specify which key is to be used
