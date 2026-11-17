@@ -84,7 +84,7 @@ install(FILES
 )
 install(FILES
         ${CMAKE_SOURCE_DIR}/LICENSE
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/fcitx5-osk-custom-git
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/fcitx5-osk-custom
     COMPONENT Fcitx5Osk
 )
 install(DIRECTORY
@@ -143,6 +143,6 @@ install(FILES
 )
 install(FILES
         ${CMAKE_SOURCE_DIR}/LICENSE
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/fcitx5-osk-kwin-launcher
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/fcitx5-osk-custom-kwin-launcher
     COMPONENT Fcitx5OskKwinLauncher
 )

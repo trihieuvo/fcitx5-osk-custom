@@ -2,7 +2,11 @@
 # Personal fork of fortime/fcitx5-osk (MIT, Copyright (c) 2024 fortime).
 
 _pkgbase=fcitx5-osk-custom
-pkgname=fcitx5-osk-custom-git
+pkgbase=fcitx5-osk-custom
+pkgname=(
+    fcitx5-osk-custom
+    fcitx5-osk-custom-kwin-launcher
+)
 _pkgver=0.2.1
 pkgver=0.2.1
 pkgrel=1
@@ -14,11 +18,7 @@ license=('MIT')
 makedepends=('cargo' 'git' 'cmake')
 # Disable lto in `makepkg`, otherwise, aws_lc can't be built
 options=(!lto)
-depends=('fcitx5' 'ttf-font-nerd' 'alsa-lib' 'openssl')
-optdepends=('kwin: needed by kwin launcher')
-# It installs the same files as the original package, so it replaces it.
-provides=('fcitx5-osk' 'fcitx5-osk-git')
-conflicts=('fcitx5-osk' 'fcitx5-osk-git')
+depends=('fcitx5' 'ttf-font-nerd')
 sha256sums=(SKIP)
 
 pkgver() {
@@ -45,6 +45,19 @@ build () {
   cmake --build "${srcdir}/build-${_pkgver}"
 }
 
-package() {
+package_fcitx5-osk-custom() {
+  depends+=('alsa-lib' 'openssl')
+  optdepends=('kwin: needed by kwin launcher')
+  # It installs the same files as the original package, so it replaces it.
+  provides=('fcitx5-osk' 'fcitx5-osk-git')
+  conflicts=('fcitx5-osk' 'fcitx5-osk-git')
   DESTDIR="$pkgdir" cmake --install "${srcdir}/build-${_pkgver}" --component Fcitx5Osk
+}
+
+package_fcitx5-osk-custom-kwin-launcher() {
+  pkgdesc='KWin launcher of fcitx5-osk-custom, shows the keyboard on the lock screen and SDDM'
+  depends+=('fcitx5-osk-custom')
+  provides=('fcitx5-osk-kwin-launcher' 'fcitx5-osk-kwin-launcher-git')
+  conflicts=('fcitx5-osk-kwin-launcher' 'fcitx5-osk-kwin-launcher-git')
+  DESTDIR="$pkgdir" cmake --install "${srcdir}/build-${_pkgver}" --component Fcitx5OskKwinLauncher
 }
