@@ -4,3 +4,9 @@
 .env
 CLAUDE.md
 .plans/
+
+# makepkg output
+/pkg/archlinux/src/
+/pkg/archlinux/pkg/
+/pkg/archlinux/fcitx5-osk-custom/
+/pkg/archlinux/*.pkg.tar.*
