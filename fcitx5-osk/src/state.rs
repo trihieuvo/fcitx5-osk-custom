@@ -98,6 +98,10 @@ impl<WM> State<WM> {
             force_show: false,
         };
         crate::widget::button::set_border_radius(state.config.config().key_border_radius());
+        crate::widget::button::set_animation_enabled(state.config.config().key_animation());
+        crate::widget::button::set_preview_enabled(state.config.config().key_preview());
+        crate::sound::set_kind(state.config.config().key_sound());
+        crate::sound::set_volume(state.config.config().key_sound_volume());
         state
             .detect_theme_enabled
             .store(state.is_auto_theme(), Ordering::SeqCst);

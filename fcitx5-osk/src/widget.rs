@@ -226,7 +226,7 @@ mod toggler {
 pub use button::{
     DummyCb as ButtonDummyCb, ExtButton, ExtButtonCatalog, button_text_class,
     center_y_button_container,
-    key::{Key, KeyEvent, PopupKey},
+    key::{Key, KeyEvent, KeyPreview, PopupKey},
 };
 #[allow(unused)]
 pub use debugger::LayoutDebugger;

@@ -76,6 +76,25 @@ pub struct Config {
     #[serde(default = "default_key_border_radius")]
     key_border_radius: f32,
 
+    /// Keys shrink and change color smoothly when pressed.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default = "default_true")]
+    key_animation: bool,
+
+    /// Show an enlarged symbol above a pressed key.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default = "default_true")]
+    key_preview: bool,
+
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default)]
+    key_sound: KeySound,
+
+    /// 0.0 ..= 1.0
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default = "default_key_sound_volume")]
+    key_sound_volume: f32,
+
     #[serde(default)]
     dark_theme: Option<String>,
 
@@ -237,6 +256,10 @@ fn default_holding_timeout() -> Duration {
 
 fn default_hide_delay() -> Duration {
     Duration::from_millis(1000)
+}
+
+fn default_key_sound_volume() -> f32 {
+    0.5
 }
 
 fn default_key_border_radius() -> f32 {
@@ -420,6 +443,16 @@ pub enum IndicatorDisplay {
     Auto,
     AlwaysOn,
     AlwaysOff,
+}
+
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq, EnumIter, strum::Display,
+)]
+pub enum KeySound {
+    #[default]
+    Off,
+    Click,
+    Thock,
 }
 
 #[derive(

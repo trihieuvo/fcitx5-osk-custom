@@ -1102,16 +1102,18 @@ fn setting_section(id: &str) -> usize {
         "width" | "key_height_scale" | "key_spacing_scale" | "key_border_radius" | "dark_theme"
         | "light_theme" | "placement" | "indicator_display" | "preferred_output_name" => 0,
         "manual_mode" | "session_manual_mode" | "ignore_fcitx_show" => 1,
+        "key_animation" | "key_preview" | "key_sound" | "key_sound_volume" => 4,
         "auto_show_on_focus" | "auto_hide_on_blur" | "auto_hide_delay" | "auto_show_touch_only" => 2,
         _ => 3,
     }
 }
 
-const SETTING_SECTIONS: [&str; 4] = [
+const SETTING_SECTIONS: [&str; 5] = [
     "Size & appearance",
     "Behavior",
     "Auto show / hide",
     "Toolbar & actions",
+    "Feedback",
 ];
 
 impl SettingLayout {
@@ -1748,6 +1750,9 @@ fn field_value_element<'a>(
         FieldType::OwnedEnumQuickActionBarState(desc) => {
             desc.to_element(field, state, unit, text_size, height)
         }
+        FieldType::OwnedEnumKeySound(desc) => {
+            desc.to_element(field, state, unit, text_size, height)
+        }
         FieldType::EnumString(desc) => desc.to_element(field, state, unit, text_size, height),
         FieldType::DynamicEnumString(desc) => {
             desc.to_element(field, state, unit, text_size, height)
@@ -1767,6 +1772,7 @@ fn field_row_num<'a>(state: &'a dyn StateExtractor, field: &'a Field) -> u32 {
         FieldType::OwnedEnumPlacement(desc) => desc.row_num(state),
         FieldType::OwnedEnumIndicatorDisplay(desc) => desc.row_num(state),
         FieldType::OwnedEnumQuickActionBarState(desc) => desc.row_num(state),
+        FieldType::OwnedEnumKeySound(desc) => desc.row_num(state),
         FieldType::EnumString(desc) => desc.row_num(state),
         FieldType::DynamicEnumString(desc) => desc.row_num(state),
         FieldType::Text(desc) => desc.row_num(state),

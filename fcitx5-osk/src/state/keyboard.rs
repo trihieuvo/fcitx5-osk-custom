@@ -40,7 +40,7 @@ use crate::{
     layout::{KLength, KeyAreaLayout},
     state::ImEvent,
     store::Store,
-    widget::{Key as KeyWidget, KeyEvent as KeyWidgetEvent, PopupKey},
+    widget::{Key as KeyWidget, KeyEvent as KeyWidgetEvent, KeyPreview, PopupKey},
 };
 
 const TEXT_PADDING_LENGTH: u32 = 3;
@@ -388,7 +388,7 @@ impl KeyboardState {
             height - TEXT_PADDING_LENGTH * 2,
         );
 
-        let (content, press_cb, release_cb) = if let Some(key) = self.keys.get(&*key_name) {
+        let (content, press_cb, release_cb, preview) = if let Some(key) = self.keys.get(&*key_name) {
             let is_shift_set = ModifierState::Shift.is_set(self.view_flags);
             let is_caps_lock_set = ModifierState::CapsLock.is_set(self.view_flags);
             let secondary_height = inner_height / 3;
@@ -454,6 +454,16 @@ impl KeyboardState {
                 );
             }
             let id = self.id;
+            let symbol = primary.symbol().to_string();
+            let preview = (symbol.chars().count() <= 2
+                && !symbol.trim().is_empty()
+                && to_modifier_state(&key_value) == ModifierState::NoState)
+                .then(|| KeyPreview {
+                    text: symbol,
+                    font: primary.font().unwrap_or(self.font),
+                    // the popup of the secondary keys takes over when the key is held
+                    max_duration: has_secondary.then_some(self.holding_timeout),
+                });
             let common = KeyEventCommon::new(id, key_name, key_value);
             (
                 Element::from(column),
@@ -472,12 +482,14 @@ impl KeyboardState {
                         KeyEventInner::Released(key_widget_event),
                     ))
                 }),
+                preview,
             )
         } else {
             tracing::debug!("{key_name} is not found");
-            (Element::from(Text::new("")), None, None)
+            (Element::from(Text::new("")), None, None, None)
         };
         KeyWidget::new(content)
+            .preview(preview)
             .on_press_with(press_cb)
             .on_release_with(release_cb)
             .padding(Padding::new(TEXT_PADDING_LENGTH as f32))
@@ -689,6 +701,9 @@ impl KeyboardState {
                     repeated: false,
                 }
             });
+        }
+        if !contains {
+            crate::sound::play_key();
         }
         let mut task = self.clear_fcitx5_hidden();
         if modifier_state == ModifierState::NoState && !contains {

@@ -23,6 +23,7 @@ mod input_activity;
 mod key_set;
 mod layout;
 mod misc;
+mod sound;
 mod state;
 mod store;
 mod theme;

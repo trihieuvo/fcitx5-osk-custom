@@ -1,9 +1,14 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 
 use iced::{
-    Background, Color, Element, Event, Length, Padding, Rectangle, Size, Vector,
+    Background, Color, Element, Event, Font, Length, Padding, Pixels, Point, Rectangle, Shadow,
+    Size, Vector, alignment,
     advanced::{
         Clipboard, Layout, Shell, Widget, layout, overlay, renderer,
+        text::{self, LineHeight, Shaping, Wrapping},
         widget::{Operation, Tree, tree},
     },
     mouse::{
@@ -15,16 +20,55 @@ use iced::{
     window::Event as WindowEvent,
 };
 
-use crate::widget::button::ExtButtonCatalog;
+use crate::widget::button::{ExtButtonCatalog, animation_enabled, border_radius, preview_enabled};
+
+const PRESS_SECS: f32 = 0.07;
+const RELEASE_SECS: f32 = 0.14;
+/// How much a key shrinks, in proportion of its size, when it is fully pressed.
+const PRESS_SHRINK: f32 = 0.08;
 
 /// Local state of the [`Key`].
 #[derive(Default)]
 struct KeyState {
     fingers: HashSet<Option<TouchFinger>>,
     hovered: bool,
+    /// The animation goes from `anim_from` to `anim_target` (1: pressed, 0: released).
+    anim_from: f32,
+    anim_target: f32,
+    anim_since: Option<Instant>,
+    pressed_at: Option<Instant>,
 }
 
 impl KeyState {
+    fn anim_secs(&self) -> f32 {
+        if self.anim_target > self.anim_from {
+            PRESS_SECS
+        } else {
+            RELEASE_SECS
+        }
+    }
+
+    /// 0.0 (released) ..= 1.0 (pressed)
+    fn level(&self, now: Instant) -> f32 {
+        let Some(since) = self.anim_since else {
+            return self.anim_target;
+        };
+        let t = (now.saturating_duration_since(since).as_secs_f32() / self.anim_secs()).clamp(0., 1.);
+        let eased = 1. - (1. - t).powi(3);
+        self.anim_from + (self.anim_target - self.anim_from) * eased
+    }
+
+    fn is_animating(&self, now: Instant) -> bool {
+        self.anim_since
+            .is_some_and(|s| now.saturating_duration_since(s).as_secs_f32() < self.anim_secs())
+    }
+
+    fn animate_to(&mut self, target: f32, now: Instant) {
+        self.anim_from = self.level(now);
+        self.anim_target = target;
+        self.anim_since = Some(now);
+    }
+
     fn is_hovered(&self) -> bool {
         self.hovered
     }
@@ -54,6 +98,15 @@ pub struct KeyEvent {
     pub bounds: Rectangle,
 }
 
+/// An enlarged copy of the key symbol shown above the key while it is pressed.
+#[derive(Clone)]
+pub struct KeyPreview {
+    pub text: String,
+    pub font: Font,
+    /// Hide the preview after this duration, it is used by keys showing a popup when held.
+    pub max_duration: Option<Duration>,
+}
+
 /// A widget works like MouseArea, Emit messages on mouse press/release events and finger press/lift/lost events.
 pub struct Key<'a, Message, PressCb, ReleaseCb, Theme = iced::Theme, Renderer = iced::Renderer>
 where
@@ -65,6 +118,7 @@ where
     padding: Padding,
     on_press_with: Option<PressCb>,
     on_release_with: Option<ReleaseCb>,
+    preview: Option<KeyPreview>,
     class: Theme::Class<'a>,
 }
 
@@ -85,6 +139,7 @@ where
             padding,
             on_press_with: _on_press_with,
             on_release_with,
+            preview,
             class,
         } = self;
         Key {
@@ -94,6 +149,7 @@ where
             padding,
             on_press_with: cb,
             on_release_with,
+            preview,
             class,
         }
     }
@@ -110,6 +166,7 @@ where
             padding,
             on_press_with,
             on_release_with: _on_release_with,
+            preview,
             class,
         } = self;
         Key {
@@ -119,6 +176,7 @@ where
             padding,
             on_press_with,
             on_release_with: cb,
+            preview,
             class,
         }
     }
@@ -135,6 +193,12 @@ where
 
     pub fn padding(mut self, padding: impl Into<Padding>) -> Self {
         self.padding = padding.into();
+        self
+    }
+
+    /// Show an enlarged preview above the key while it is pressed.
+    pub fn preview(mut self, preview: Option<KeyPreview>) -> Self {
+        self.preview = preview;
         self
     }
 
@@ -166,6 +230,7 @@ where
             padding: Default::default(),
             on_press_with: Default::default(),
             on_release_with: Default::default(),
+            preview: None,
             class: Theme::custom_default(),
         }
     }
@@ -178,7 +243,7 @@ where
     PressCb: 'static + Fn(KeyEvent) -> Message,
     ReleaseCb: 'static + Fn(KeyEvent) -> Message,
     Theme: ExtButtonCatalog,
-    Renderer: renderer::Renderer,
+    Renderer: renderer::Renderer + text::Renderer<Font = Font>,
 {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<KeyState>()
@@ -281,19 +346,55 @@ where
         viewport: &Rectangle,
     ) {
         let state: &KeyState = tree.state.downcast_ref();
-        let status = if state.has_finger_pressed() {
-            ButtonStatus::Pressed
-        } else if state.is_hovered() {
-            ButtonStatus::Hovered
-        } else if self.on_press_with.is_some() || self.on_release_with.is_some() {
-            ButtonStatus::Active
+        let enabled = self.on_press_with.is_some() || self.on_release_with.is_some();
+        let (style, bounds) = if animation_enabled() && enabled {
+            let level = state.level(Instant::now());
+            let base_status = if state.is_hovered() {
+                ButtonStatus::Hovered
+            } else {
+                ButtonStatus::Active
+            };
+            let base = theme.style(&self.class, base_status);
+            if level <= 0.001 {
+                (base, layout.bounds())
+            } else {
+                let pressed = theme.style(&self.class, ButtonStatus::Pressed);
+                let background = mix_background(base.background, pressed.background, level);
+                let shadow = if level > 0.5 { pressed.shadow } else { base.shadow };
+                let bounds = layout.bounds();
+                let (dx, dy) = (
+                    bounds.width * PRESS_SHRINK * level / 2.,
+                    bounds.height * PRESS_SHRINK * level / 2.,
+                );
+                (
+                    ButtonStyle {
+                        background,
+                        shadow,
+                        ..base
+                    },
+                    Rectangle {
+                        x: bounds.x + dx,
+                        y: bounds.y + dy,
+                        width: bounds.width - dx * 2.,
+                        height: bounds.height - dy * 2.,
+                    },
+                )
+            }
         } else {
-            ButtonStatus::Disabled
+            let status = if state.has_finger_pressed() {
+                ButtonStatus::Pressed
+            } else if state.is_hovered() {
+                ButtonStatus::Hovered
+            } else if enabled {
+                ButtonStatus::Active
+            } else {
+                ButtonStatus::Disabled
+            };
+            (theme.style(&self.class, status), layout.bounds())
         };
-        let style = theme.style(&self.class, status);
         renderer.fill_quad(
             renderer::Quad {
-                bounds: layout.bounds(),
+                bounds,
                 border: style.border,
                 shadow: style.shadow,
                 snap: style.snap,
@@ -325,6 +426,25 @@ where
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        let state: &KeyState = tree.state.downcast_ref();
+        if preview_enabled()
+            && state.has_finger_pressed()
+            && let Some(preview) = self.preview.as_ref()
+            && preview
+                .max_duration
+                .zip(state.pressed_at)
+                .is_none_or(|(max, at)| at.elapsed() < max)
+        {
+            let key_bounds = Rectangle::new(
+                layout.position() + translation,
+                layout.bounds().size(),
+            );
+            return Some(overlay::Element::new(Box::new(PreviewOverlay {
+                key_bounds,
+                preview,
+                class: &self.class,
+            })));
+        }
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout,
@@ -332,6 +452,101 @@ where
             viewport,
             translation,
         )
+    }
+}
+
+fn mix_color(a: Color, b: Color, t: f32) -> Color {
+    Color {
+        r: a.r + (b.r - a.r) * t,
+        g: a.g + (b.g - a.g) * t,
+        b: a.b + (b.b - a.b) * t,
+        a: a.a + (b.a - a.a) * t,
+    }
+}
+
+fn mix_background(a: Option<Background>, b: Option<Background>, t: f32) -> Option<Background> {
+    match (a, b) {
+        (Some(Background::Color(a)), Some(Background::Color(b))) => {
+            Some(Background::Color(mix_color(a, b, t)))
+        }
+        (None, Some(Background::Color(b))) => {
+            Some(Background::Color(mix_color(Color::TRANSPARENT, b, t)))
+        }
+        (a, b) => {
+            if t < 0.5 {
+                a
+            } else {
+                b
+            }
+        }
+    }
+}
+
+/// The enlarged symbol shown above a pressed key.
+struct PreviewOverlay<'b, 'a, Theme: ExtButtonCatalog> {
+    key_bounds: Rectangle,
+    preview: &'b KeyPreview,
+    class: &'b Theme::Class<'a>,
+}
+
+impl<Message, Theme, Renderer> overlay::Overlay<Message, Theme, Renderer>
+    for PreviewOverlay<'_, '_, Theme>
+where
+    Theme: ExtButtonCatalog,
+    Renderer: renderer::Renderer + text::Renderer<Font = Font>,
+{
+    fn layout(&mut self, _renderer: &Renderer, bounds: Size) -> layout::Node {
+        let key = self.key_bounds;
+        let width = (key.width * 1.5).min(bounds.width);
+        let height = key.height * 1.6;
+        let x = (key.center_x() - width / 2.).clamp(0., (bounds.width - width).max(0.));
+        let y = (key.y - height - key.height * 0.1).max(0.);
+        layout::Node::new(Size::new(width, height)).move_to(Point::new(x, y))
+    }
+
+    fn draw(
+        &self,
+        renderer: &mut Renderer,
+        theme: &Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        _cursor: MouseCursor,
+    ) {
+        let bounds = layout.bounds();
+        let style = theme.style(self.class, ButtonStatus::Active);
+        let mut border = style.border;
+        border.radius = (border_radius() * 1.5).into();
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds,
+                border,
+                shadow: Shadow {
+                    color: Color::from_rgba(0., 0., 0., 0.4),
+                    offset: Vector::new(0., 2.),
+                    blur_radius: 8.,
+                },
+                snap: style.snap,
+            },
+            style
+                .background
+                .unwrap_or(Background::Color(Color::BLACK)),
+        );
+        renderer.fill_text(
+            text::Text {
+                content: self.preview.text.clone(),
+                bounds: bounds.size(),
+                size: Pixels(bounds.height * 0.55),
+                line_height: LineHeight::default(),
+                font: self.preview.font,
+                align_x: text::Alignment::Center,
+                align_y: alignment::Vertical::Center,
+                shaping: Shaping::Advanced,
+                wrapping: Wrapping::None,
+            },
+            Point::new(bounds.center_x(), bounds.center_y()),
+            style.text_color,
+            bounds,
+        );
     }
 }
 
@@ -343,7 +558,7 @@ where
     PressCb: 'static + Fn(KeyEvent) -> Message,
     ReleaseCb: 'static + Fn(KeyEvent) -> Message,
     Theme: 'a + ExtButtonCatalog,
-    Renderer: 'a + renderer::Renderer,
+    Renderer: 'a + renderer::Renderer + text::Renderer<Font = Font>,
 {
     fn from(
         widget: Key<'a, Message, PressCb, ReleaseCb, Theme, Renderer>,
@@ -372,6 +587,13 @@ fn update<Message, PressCb, ReleaseCb, Theme, Renderer>(
     if widget.on_press_with.is_none() && widget.on_release_with.is_none() {
         if state.hovered {
             state.hovered = false;
+            shell.request_redraw();
+        }
+        if state.has_finger_pressed() {
+            // the key went away while pressed, its release will never be seen
+            state.fingers.clear();
+            state.pressed_at = None;
+            state.animate_to(0., Instant::now());
             shell.request_redraw();
         }
         return;
@@ -405,6 +627,9 @@ fn update<Message, PressCb, ReleaseCb, Theme, Renderer>(
                 state.hovered = false;
                 shell.request_redraw();
             }
+            if state.is_animating(Instant::now()) {
+                shell.request_redraw();
+            }
             return;
         }
         _ => return,
@@ -435,11 +660,26 @@ fn update<Message, PressCb, ReleaseCb, Theme, Renderer>(
                     bounds,
                 }));
             }
+            if !state.has_finger_pressed() {
+                let now = Instant::now();
+                state.animate_to(1., now);
+                state.pressed_at = Some(now);
+                if let Some(max) = widget.preview.as_ref().and_then(|p| p.max_duration) {
+                    // redraw to hide the preview when the popup of secondary keys takes over
+                    shell.request_redraw_at(now + max);
+                }
+            }
             state.finger_pressed(finger);
+            shell.request_redraw();
             shell.capture_event();
         }
     } else if state.is_pressed(&finger) {
         state.finger_released(&finger);
+        if !state.has_finger_pressed() {
+            state.animate_to(0., Instant::now());
+            state.pressed_at = None;
+        }
+        shell.request_redraw();
         tracing::trace!(
             "key[{:?}] is released by finger {:?}, pressed: {}",
             bounds,

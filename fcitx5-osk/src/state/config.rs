@@ -11,7 +11,9 @@ use strum::IntoEnumIterator;
 
 use crate::{
     app::{KeyboardNotification, Message},
-    config::{Config, ConfigManager, IndicatorDisplay, Placement, QuickActionBarState},
+    config::{
+        Config, ConfigManager, IndicatorDisplay, KeySound, Placement, QuickActionBarState,
+    },
     dbus::server::ImPanelEvent,
     layout::KLength,
     state::{ImEvent, LayoutEvent, StateExtractor, StoreEvent, ThemeEvent, WindowManagerEvent},
@@ -410,6 +412,7 @@ pub enum FieldType {
     OwnedEnumPlacement(OwnedEnumDesc<Placement>),
     OwnedEnumIndicatorDisplay(OwnedEnumDesc<IndicatorDisplay>),
     OwnedEnumQuickActionBarState(OwnedEnumDesc<QuickActionBarState>),
+    OwnedEnumKeySound(OwnedEnumDesc<KeySound>),
     EnumString(EnumDesc<String>),
     DynamicEnumString(DynamicEnumDesc<String>),
     Text(TextDesc),
@@ -438,6 +441,12 @@ impl From<OwnedEnumDesc<Placement>> for FieldType {
 impl From<OwnedEnumDesc<IndicatorDisplay>> for FieldType {
     fn from(value: OwnedEnumDesc<IndicatorDisplay>) -> Self {
         Self::OwnedEnumIndicatorDisplay(value)
+    }
+}
+
+impl From<OwnedEnumDesc<KeySound>> for FieldType {
+    fn from(value: OwnedEnumDesc<KeySound>) -> Self {
+        Self::OwnedEnumKeySound(value)
     }
 }
 
@@ -615,6 +624,68 @@ impl ConfigState {
                         on_changed: |value| {
                             if let Ok(v) = value.parse::<f32>() {
                                 Message::from(UpdateConfigEvent::KeyBorderRadius(v))
+                            } else {
+                                KeyboardNotification::Error(Arc::new(anyhow::anyhow!(
+                                    "{value} is not a f32"
+                                )))
+                                .into()
+                            }
+                        },
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
+                    name: "Key press animation",
+                    id: "key_animation",
+                    typ: BoolDesc {
+                        restore_value: Some(|c| c.key_animation()),
+                        cur_value: |state| state.config().key_animation(),
+                        is_enabled: |_state| true,
+                        on_changed: |_, v| Message::from(UpdateConfigEvent::KeyAnimation(v)),
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
+                    name: "Key preview popup",
+                    id: "key_preview",
+                    typ: BoolDesc {
+                        restore_value: Some(|c| c.key_preview()),
+                        cur_value: |state| state.config().key_preview(),
+                        is_enabled: |_state| true,
+                        on_changed: |_, v| Message::from(UpdateConfigEvent::KeyPreview(v)),
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
+                    name: "Key sound",
+                    id: "key_sound",
+                    typ: OwnedEnumDesc::<KeySound> {
+                        cur_value: |state| Some(state.config().key_sound()),
+                        variants: KeySound::iter().collect(),
+                        is_enabled: |_state| true,
+                        on_selected: |_, s| Message::from(UpdateConfigEvent::KeySound(s)),
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
+                    name: "Key sound volume",
+                    id: "key_sound_volume",
+                    typ: RangeDesc::<f32> {
+                        init_value: |state| sane_volume(state.config().key_sound_volume()),
+                        min_value: |_state| 0.,
+                        max_value: |_state| 1.,
+                        restore_value: |_state, c| sane_volume(c.key_sound_volume()),
+                        step: |_state| 0.05,
+                        format: |_state, v| format!("{:.0}%", v * 100.),
+                        is_enabled: |state| state.config().key_sound() != KeySound::Off,
+                        check: |_state, value| (0. ..=1.).contains(&value),
+                        on_changed: |value| {
+                            if let Ok(v) = value.parse::<f32>() {
+                                Message::from(UpdateConfigEvent::KeySoundVolume(v))
                             } else {
                                 KeyboardNotification::Error(Arc::new(anyhow::anyhow!(
                                     "{value} is not a f32"
@@ -950,6 +1021,40 @@ impl ConfigState {
                     Message::Nothing
                 }
             },
+            @KeyAnimation => {
+                config_eq!(key_animation),
+                set_key_animation,
+                |v| {
+                    crate::widget::button::set_animation_enabled(v);
+                    Message::Nothing
+                }
+            },
+            @KeyPreview => {
+                config_eq!(key_preview),
+                set_key_preview,
+                |v| {
+                    crate::widget::button::set_preview_enabled(v);
+                    Message::Nothing
+                }
+            },
+            @KeySound => {
+                config_eq!(key_sound),
+                set_key_sound,
+                |v| {
+                    crate::sound::set_kind(v);
+                    crate::sound::play_key();
+                    Message::Nothing
+                }
+            },
+            @KeySoundVolume => {
+                config_eq!(key_sound_volume),
+                set_key_sound_volume,
+                |v| {
+                    crate::sound::set_volume(v);
+                    crate::sound::play_key();
+                    Message::Nothing
+                }
+            },
             @DarkTheme => {option_config_eq!(dark_theme), set_dark_theme},
             @LightTheme => {option_config_eq!(light_theme), set_light_theme},
             @PreferredOutputName => {
@@ -1055,6 +1160,10 @@ impl ConfigState {
     }
 }
 
+fn sane_volume(v: f32) -> f32 {
+    if v.is_finite() { v.clamp(0., 1.) } else { 0.5 }
+}
+
 fn default_should_display(_state: &dyn StateExtractor) -> bool {
     true
 }
@@ -1131,6 +1240,10 @@ pub enum UpdateConfigEvent {
     IndicatorDisplay(IndicatorDisplay),
     Theme(String),
     KeyBorderRadius(f32),
+    KeyAnimation(bool),
+    KeyPreview(bool),
+    KeySound(KeySound),
+    KeySoundVolume(f32),
     KeyHeightScale(f32),
     KeySpacingScale(f32),
     DarkTheme(String),

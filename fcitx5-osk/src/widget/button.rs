@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use iced::{
     Background, Border, Color, Element, Event, Length, Padding, Rectangle, Renderer, Size, Theme,
@@ -26,6 +26,27 @@ use iced::{
 };
 
 pub mod key;
+
+static ANIMATION_ENABLED: AtomicBool = AtomicBool::new(true);
+static PREVIEW_ENABLED: AtomicBool = AtomicBool::new(true);
+
+/// Whether keys animate when pressed, see `key_animation` in the config.
+pub fn animation_enabled() -> bool {
+    ANIMATION_ENABLED.load(Ordering::Relaxed)
+}
+
+pub fn set_animation_enabled(enabled: bool) {
+    ANIMATION_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+/// Whether a pressed key shows an enlarged preview, see `key_preview` in the config.
+pub fn preview_enabled() -> bool {
+    PREVIEW_ENABLED.load(Ordering::Relaxed)
+}
+
+pub fn set_preview_enabled(enabled: bool) {
+    PREVIEW_ENABLED.store(enabled, Ordering::Relaxed);
+}
 
 pub const DEFAULT_BORDER_RADIUS: f32 = 5.;
 
