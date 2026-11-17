@@ -274,6 +274,9 @@ pub struct ConfigManager {
     _path: Option<PathBuf>,
     config: Config,
     writer: UnboundedSender<String>,
+    /// The values the user chose to keep, see `restore-point.toml` beside the config file.
+    restore_point: Option<Config>,
+    restore_path: Option<PathBuf>,
 }
 
 impl ConfigManager {
@@ -285,11 +288,28 @@ impl ConfigManager {
             _ => Figment::new().extract()?,
         };
         let (tx, mut rx) = mpsc::unbounded();
-        let res = Self {
+        let restore_path = path.map(|p| p.with_file_name("restore-point.toml"));
+        let restore_point = restore_path
+            .as_ref()
+            .filter(|p| std::fs::metadata(p).is_ok_and(|m| m.len() > 0))
+            .and_then(|p| match Figment::new().merge(Toml::file(p)).extract::<Config>() {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    tracing::warn!("failed to read restore point {p:?}: {e}");
+                    None
+                }
+            });
+        let mut res = Self {
             _path: path.cloned(),
             config,
             writer: tx,
+            restore_point,
+            restore_path,
         };
+        if res.restore_point.is_none() {
+            // first run: the current values are the restore point
+            res.save_restore_point();
+        }
         let path = path.cloned();
         let bg = async move {
             while let Some(mut latest) = rx.next().await {
@@ -323,6 +343,35 @@ impl ConfigManager {
             tracing::info!("config writing bg exits");
         };
         Ok((res, bg))
+    }
+
+    pub fn restore_point(&self) -> Option<&Config> {
+        self.restore_point.as_ref()
+    }
+
+    /// Remember the current values as the restore point, and persist them.
+    pub fn save_restore_point(&mut self) -> bool {
+        let res = self.write_restore_point();
+        match &res {
+            Ok(()) => self.restore_point = Some(self.config.clone()),
+            Err(e) => tracing::error!("failed to write restore point: {e}"),
+        }
+        res.is_ok()
+    }
+
+    fn write_restore_point(&self) -> Result<()> {
+        let Some(path) = self.restore_path.as_ref() else {
+            return Ok(());
+        };
+        let content = toml::to_string(&self.config)?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        // write beside the target then rename, so a crash can't leave a truncated file
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, content)?;
+        std::fs::rename(&tmp, path)?;
+        Ok(())
     }
 
     pub fn try_write(&mut self) -> bool {

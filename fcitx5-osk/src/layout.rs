@@ -1215,6 +1215,53 @@ impl SettingLayout {
                 );
             }
         }
+        let restores: Vec<Message> = state
+            .updatable_fields()
+            .iter()
+            .filter(|f| f.should_display(state))
+            .filter_map(|f| f.restore_message(state))
+            .collect();
+        let restore_all = ExtButton::new(
+            Text::new("Restore all")
+                .size(text_size)
+                .shaping(Shaping::Advanced),
+        )
+        .padding(DEFAULT_PADDING);
+        let restore_all: Element<'b, Message> = if restores.is_empty() {
+            restore_all.into()
+        } else {
+            restore_all
+                .on_release_with(Some(move || {
+                    Message::from(UpdateConfigEvent::RestoreAll(restores.clone()))
+                }))
+                .into()
+        };
+        page = page.push(
+            Container::new(
+                Text::new("Backup")
+                    .size(text_size)
+                    .shaping(Shaping::Advanced)
+                    .style(|theme: &Theme| TextStyle {
+                        color: Some(theme.palette().primary),
+                    }),
+            )
+            .padding(Padding::new(0.).top(unit.0)),
+        );
+        page = page.push(iced::widget::rule::horizontal(1));
+        page = page.push(
+            Row::new()
+                .spacing(2 * unit)
+                .push(
+                    ExtButton::new(
+                        Text::new("Save restore point")
+                            .size(text_size)
+                            .shaping(Shaping::Advanced),
+                    )
+                    .padding(DEFAULT_PADDING)
+                    .on_release_with(Some(|| Message::from(UpdateConfigEvent::SaveRestorePoint))),
+                )
+                .push(restore_all),
+        );
         Container::new(
             Scrollable::with_direction(
                 Row::new()
@@ -1381,13 +1428,13 @@ where
         &'a self,
         field: &'a Field,
         state: &'a dyn StateExtractor,
-        _unit: KLength,
+        unit: KLength,
         text_size: KLength,
         _height: KLength,
     ) -> Element<'a, Message> {
         let cur_value = self.cur_value(field, state);
         let padding = DEFAULT_PADDING;
-        let mut column = Column::new().push(
+        let mut value_row = Row::new().spacing(unit).align_y(Vertical::Center).push(
             Container::new(
                 Text::new(self.format(state, cur_value))
                     .size(text_size)
@@ -1401,6 +1448,10 @@ where
                 ..Default::default()
             }),
         );
+        if let Some(message) = field.restore_message(state) {
+            value_row = value_row.push(restore_btn(message, text_size, unit));
+        }
+        let mut column = Column::new().push(value_row);
         if self.is_enabled(state) {
             let init_value = self.init_value(state);
             let min_value = self.min_value(state);
@@ -1485,18 +1536,26 @@ impl ToElementFieldType for BoolDesc {
         &'a self,
         _field: &'a Field,
         state: &'a dyn StateExtractor,
-        _unit: KLength,
+        unit: KLength,
         text_size: KLength,
         _height: KLength,
     ) -> Element<'a, Message> {
         let cur_value = self.cur_value(state);
+        let restore = self.restore_message(state);
         let mut toggler = Toggler::new(cur_value)
             .size(text_size)
             .style(widget::toggler_style);
         if self.is_enabled(state) {
             toggler = toggler.on_toggle(|value| self.on_changed(state, value))
         }
-        toggler.into()
+        let mut row = Row::new()
+            .spacing(unit)
+            .align_y(Vertical::Center)
+            .push(toggler);
+        if let Some(message) = restore {
+            row = row.push(restore_btn(message, text_size, unit));
+        }
+        row.into()
     }
 }
 
@@ -1611,6 +1670,13 @@ fn nerd_btn<'a, Message: 'a>(
         .height(font_size + unit)
         .style(widget::button_text_class)
         .padding(0)
+}
+
+/// A small "undo" button, the message restores a value to the one of the restore point.
+fn restore_btn<'a>(message: Message, font_size: KLength, unit: KLength) -> Element<'a, Message> {
+    nerd_btn('\u{f0e2}', font_size, unit)
+        .on_release_with(Some(move || message.clone()))
+        .into()
 }
 
 fn nerd_btn_container<'a, Message, PressCb, ReleaseCb>(

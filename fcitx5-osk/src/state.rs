@@ -343,6 +343,10 @@ pub trait StateExtractor {
     fn config_temp_text(&self, key: &str) -> Option<(&str, &str)>;
 
     fn session_manual_mode(&self) -> Option<bool>;
+
+    fn restore_point(&self) -> Option<&Config>;
+
+    fn is_portrait(&self) -> bool;
 }
 
 impl<WM> StateExtractor for State<WM>
@@ -426,6 +430,14 @@ where
 
     fn session_manual_mode(&self) -> Option<bool> {
         self.session_manual_mode
+    }
+
+    fn restore_point(&self) -> Option<&Config> {
+        self.config.restore_point()
+    }
+
+    fn is_portrait(&self) -> bool {
+        self.window_manager.is_portrait()
     }
 }
 

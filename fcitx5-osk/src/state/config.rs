@@ -107,6 +107,8 @@ pub struct RangeDesc<T> {
     init_value: fn(&dyn StateExtractor) -> T,
     min_value: fn(&dyn StateExtractor) -> T,
     max_value: fn(&dyn StateExtractor) -> T,
+    /// The value stored in the restore point, if any.
+    restore_value: fn(&dyn StateExtractor, &Config) -> T,
     step: fn(&dyn StateExtractor) -> T,
     format: fn(&dyn StateExtractor, T) -> String,
     is_enabled: fn(&dyn StateExtractor) -> bool,
@@ -142,6 +144,31 @@ where
 
     pub fn max_value(&self, state: &dyn StateExtractor) -> T {
         (self.max_value)(state)
+    }
+
+    /// A message restoring the value of the restore point, if the current one differs.
+    pub fn restore_message(&self, field: &Field, state: &dyn StateExtractor) -> Option<Message>
+    where
+        T: ToString + Into<f64>,
+    {
+        if !self.is_enabled(state) {
+            return None;
+        }
+        let restore = (self.restore_value)(state, state.restore_point()?);
+        // a restore point from another screen may not fit this one
+        if !self.check(state, restore) {
+            return None;
+        }
+        let cur: f64 = self.cur_value(field, state).into();
+        let restore_f: f64 = restore.into();
+        // the width is derived from the layout, so it is only approximately the stored one
+        if (cur - restore_f).abs() < f64::max(1e-4, restore_f.abs() * 1e-3) {
+            return None;
+        }
+        Some(Message::from(UpdateConfigEvent::Restore {
+            key: field.id().to_string(),
+            message: Box::new((self.on_changed)(restore.to_string())),
+        }))
     }
 
     pub fn step(&self, state: &dyn StateExtractor) -> T {
@@ -321,6 +348,7 @@ impl TextDesc {
 }
 
 pub struct BoolDesc {
+    restore_value: Option<fn(&Config) -> bool>,
     cur_value: fn(&dyn StateExtractor) -> bool,
     is_enabled: fn(&dyn StateExtractor) -> bool,
     on_changed: fn(&dyn StateExtractor, bool) -> Message,
@@ -337,6 +365,13 @@ impl BoolDesc {
 
     pub fn on_changed(&self, state: &dyn StateExtractor, value: bool) -> Message {
         (self.on_changed)(state, value)
+    }
+
+    pub fn restore_message(&self, state: &dyn StateExtractor) -> Option<Message> {
+        let restore = (self.restore_value?)(state.restore_point()?);
+        (restore != self.cur_value(state) && self.is_enabled(state)).then(|| {
+            self.on_changed(state, restore)
+        })
     }
 }
 
@@ -450,6 +485,15 @@ pub struct Field {
 }
 
 impl Field {
+    /// A message putting this field back to the value of the restore point, if it differs.
+    pub fn restore_message(&self, state: &dyn StateExtractor) -> Option<Message> {
+        match &self.typ {
+            FieldType::RangeF32(desc) => desc.restore_message(self, state),
+            FieldType::Bool(desc) => desc.restore_message(state),
+            _ => None,
+        }
+    }
+
     pub fn name(&self) -> &str {
         self.name
     }
@@ -485,6 +529,7 @@ impl ConfigState {
                         init_value: |state| state.keyboard_window_size().width.val(),
                         min_value: |_state| 360.,
                         max_value: |state| state.screen_size().width,
+                        restore_value: |state, c| if state.is_portrait() { c.portrait_width().val() } else { c.landscape_width().val() },
                         step: |_state| 1.,
                         format: |_state, v| format!("{:.1}", v),
                         is_enabled: |_state| true,
@@ -510,6 +555,7 @@ impl ConfigState {
                         init_value: |state| state.config().key_height_scale(),
                         min_value: |_state| 0.5,
                         max_value: |_state| 2.,
+                        restore_value: |_state, c| c.key_height_scale(),
                         step: |_state| 0.05,
                         format: |_state, v| format!("{:.2}", v),
                         is_enabled: |_state| true,
@@ -535,6 +581,7 @@ impl ConfigState {
                         init_value: |state| state.config().key_spacing_scale(),
                         min_value: |_state| 0.5,
                         max_value: |_state| 2.,
+                        restore_value: |_state, c| c.key_spacing_scale(),
                         step: |_state| 0.05,
                         format: |_state, v| format!("{:.2}", v),
                         is_enabled: |_state| true,
@@ -560,6 +607,7 @@ impl ConfigState {
                         init_value: |_state| crate::widget::button::border_radius(),
                         min_value: |_state| 0.,
                         max_value: |_state| 30.,
+                        restore_value: |_state, c| c.key_border_radius(),
                         step: |_state| 1.,
                         format: |_state, v| format!("{:.1}", v),
                         is_enabled: |_state| true,
@@ -612,6 +660,7 @@ impl ConfigState {
                     name: "Manual Mode",
                     id: "manual_mode",
                     typ: BoolDesc {
+                        restore_value: Some(|c| c.manual_mode()),
                         cur_value: |state| state.config().manual_mode(),
                         is_enabled: |_state| true,
                         on_changed: |_, v| Message::from(UpdateConfigEvent::ManualMode(v)),
@@ -623,6 +672,7 @@ impl ConfigState {
                     name: "Manual Mode(Session)",
                     id: "session_manual_mode",
                     typ: BoolDesc {
+                        restore_value: None,
                         cur_value: |state| state.session_manual_mode().unwrap_or(false),
                         is_enabled: |_| false,
                         on_changed: |_, _| Message::Nothing,
@@ -634,6 +684,7 @@ impl ConfigState {
                     name: "Ignore Fcitx Show",
                     id: "ignore_fcitx_show",
                     typ: BoolDesc {
+                        restore_value: Some(|c| c.ignore_fcitx_show()),
                         cur_value: |state| state.config().ignore_fcitx_show(),
                         is_enabled: |_state| true,
                         on_changed: |_, v| Message::from(UpdateConfigEvent::IgnoreFcitxShow(v)),
@@ -645,6 +696,7 @@ impl ConfigState {
                     name: "Auto show on focus",
                     id: "auto_show_on_focus",
                     typ: BoolDesc {
+                        restore_value: Some(|c| c.auto_show_on_focus()),
                         cur_value: |state| state.config().auto_show_on_focus(),
                         is_enabled: |_state| true,
                         on_changed: |_, v| Message::from(UpdateConfigEvent::AutoShowOnFocus(v)),
@@ -656,6 +708,7 @@ impl ConfigState {
                     name: "Auto hide on blur",
                     id: "auto_hide_on_blur",
                     typ: BoolDesc {
+                        restore_value: Some(|c| c.auto_hide_on_blur()),
                         cur_value: |state| state.config().auto_hide_on_blur(),
                         is_enabled: |_state| true,
                         on_changed: |_, v| Message::from(UpdateConfigEvent::AutoHideOnBlur(v)),
@@ -670,6 +723,7 @@ impl ConfigState {
                         init_value: |state| state.config().auto_hide_delay().as_millis() as f32,
                         min_value: |_state| 0.,
                         max_value: |_state| 2000.,
+                        restore_value: |_state, c| c.auto_hide_delay().as_millis() as f32,
                         step: |_state| 1.,
                         format: |_state, v| format!("{:.0}", v),
                         is_enabled: |state| state.config().auto_hide_on_blur(),
@@ -694,6 +748,7 @@ impl ConfigState {
                     name: "Auto show: touch only",
                     id: "auto_show_touch_only",
                     typ: BoolDesc {
+                        restore_value: Some(|c| c.auto_show_touch_only()),
                         cur_value: |state| state.config().auto_show_touch_only(),
                         is_enabled: |state| {
                             state.config().auto_show_on_focus()
@@ -830,6 +885,10 @@ impl ConfigState {
         self.config_manager.as_ref()
     }
 
+    pub fn restore_point(&self) -> Option<&Config> {
+        self.config_manager.restore_point()
+    }
+
     pub fn updatable_fields(&self) -> &[Field] {
         &self.updatable_fields
     }
@@ -953,6 +1012,26 @@ impl ConfigState {
                 set_custom_actions,
                 |v| Message::from(StoreEvent::UpdateCustomActions(v))
             },
+            UpdateConfigEvent::Restore {key, message} => {
+                self.temp_texts.remove(&key);
+                (false, Some(*message))
+            },
+            UpdateConfigEvent::SaveRestorePoint => {
+                if !self.config_manager.save_restore_point() {
+                    return Task::done(
+                        KeyboardNotification::Error(Arc::new(anyhow::anyhow!(
+                            "failed to save the restore point"
+                        )))
+                        .into(),
+                    );
+                }
+                return Task::done(
+                    KeyboardNotification::Info("Restore point saved".to_string()).into(),
+                );
+            },
+            UpdateConfigEvent::RestoreAll(messages) => {
+                return Task::batch(messages.into_iter().map(Task::done));
+            },
             UpdateConfigEvent::ChangeTempText {key, init_value, value} => {
                 tracing::debug!("Update temp_text[{key}] to {value}, init value[{init_value}]");
                 self.temp_texts.insert(key, (init_value, value));
@@ -1057,6 +1136,13 @@ pub enum UpdateConfigEvent {
     DarkTheme(String),
     LightTheme(String),
     PreferredOutputName(String),
+    /// Drop the unsubmitted slider value of `key` and apply `message`.
+    Restore {
+        key: String,
+        message: Box<Message>,
+    },
+    SaveRestorePoint,
+    RestoreAll(Vec<Message>),
     ChangeTempText {
         key: String,
         init_value: String,
