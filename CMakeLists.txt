@@ -25,17 +25,17 @@ add_custom_target(build_rust ALL
 )
 
 # Rust binary full path
-set(FCITX5_OSK_BIN ${CARGO_TARGET_DIR}/release/fcitx5-osk)
+set(FCITX5_OSK_BIN ${CARGO_TARGET_DIR}/release/fcitx5-osk-custom)
 set(FCITX5_OSK_KEY_HELPER_BIN ${CARGO_TARGET_DIR}/release/fcitx5-osk-key-helper)
 set(FCITX5_OSK_KWIN_LAUNCHER_BIN ${CARGO_TARGET_DIR}/release/fcitx5-osk-kwin-launcher)
 
 # Configure files
-configure_file(${CMAKE_SOURCE_DIR}/pkg/share/applications/fyi.fortime.Fcitx5Osk.desktop.in
-    ${CMAKE_BINARY_DIR}/share/applications/fyi.fortime.Fcitx5Osk.desktop
+configure_file(${CMAKE_SOURCE_DIR}/pkg/share/applications/io.github.trihieuvo.Fcitx5OskCustom.desktop.in
+    ${CMAKE_BINARY_DIR}/share/applications/io.github.trihieuvo.Fcitx5OskCustom.desktop
     @ONLY
 )
-configure_file(${CMAKE_SOURCE_DIR}/pkg/share/dbus-1/services/fyi.fortime.Fcitx5Osk.service.in
-    ${CMAKE_BINARY_DIR}/share/dbus-1/services/fyi.fortime.Fcitx5Osk.service
+configure_file(${CMAKE_SOURCE_DIR}/pkg/share/dbus-1/services/io.github.trihieuvo.Fcitx5OskCustom.service.in
+    ${CMAKE_BINARY_DIR}/share/dbus-1/services/io.github.trihieuvo.Fcitx5OskCustom.service
     @ONLY
 )
 configure_file(${CMAKE_SOURCE_DIR}/pkg/lib/systemd/system/fcitx5-osk-key-helper.service.in
@@ -67,19 +67,19 @@ install(PROGRAMS
 
 # Install fcitx5-osk's data files
 install(FILES
-        ${CMAKE_BINARY_DIR}/share/applications/fyi.fortime.Fcitx5Osk.desktop
+        ${CMAKE_BINARY_DIR}/share/applications/io.github.trihieuvo.Fcitx5OskCustom.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
     COMPONENT Fcitx5Osk
 )
 install(FILES
-        ${CMAKE_BINARY_DIR}/share/dbus-1/services/fyi.fortime.Fcitx5Osk.service
+        ${CMAKE_BINARY_DIR}/share/dbus-1/services/io.github.trihieuvo.Fcitx5OskCustom.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
     COMPONENT Fcitx5Osk
 )
 install(FILES
         ${CMAKE_SOURCE_DIR}/assets/icons/fcitx5-osk.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
-    RENAME fyi.fortime.Fcitx5Osk.svg
+    RENAME io.github.trihieuvo.Fcitx5OskCustom.svg
     COMPONENT Fcitx5Osk
 )
 install(FILES
@@ -99,7 +99,7 @@ install(DIRECTORY
     COMPONENT Fcitx5Osk
 )
 install(FILES
-        ${CMAKE_BINARY_DIR}/share/dbus-1/services/fyi.fortime.Fcitx5Osk.service
+        ${CMAKE_BINARY_DIR}/share/dbus-1/services/io.github.trihieuvo.Fcitx5OskCustom.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
     COMPONENT Fcitx5Osk
 )

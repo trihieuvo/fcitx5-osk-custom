@@ -1,5 +1,5 @@
 [package]
-name = "fcitx5-osk"
+name = "fcitx5-osk-custom"
 authors.workspace = true
 version.workspace = true
 edition.workspace = true

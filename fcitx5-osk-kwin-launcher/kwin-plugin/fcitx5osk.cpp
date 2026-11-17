@@ -82,8 +82,8 @@ void Fcitx5OskEffect::maybeTrigger()
     if (std::chrono::abs(delta) <= std::chrono::milliseconds(m_interval)) {
         qCDebug(KWIN_FCITX5OSK) << "Show keyboard, delta: " << delta;
         // Show keyboard
-        FyiFortimeFcitx5OskController1Interface interface(QStringLiteral("fyi.fortime.Fcitx5Osk"),
-            QStringLiteral("/fyi/fortime/Fcitx5Osk/Controller"),
+        IoGithubTrihieuvoFcitx5OskCustomController1Interface interface(QStringLiteral("io.github.trihieuvo.Fcitx5OskCustom"),
+            QStringLiteral("/io/github/trihieuvo/Fcitx5OskCustom/Controller"),
             QDBusConnection::sessionBus());
         interface.Show();
         m_lastTouchDown.reset();

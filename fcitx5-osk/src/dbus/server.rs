@@ -385,7 +385,7 @@ impl Fcitx5OskService {
     }
 }
 
-#[zbus::interface(name = "fyi.fortime.Fcitx5Osk.Controller1")]
+#[zbus::interface(name = "io.github.trihieuvo.Fcitx5OskCustom.Controller1")]
 impl Fcitx5OskService {
     #[tracing::instrument(level = "debug", skip(self), err, ret)]
     async fn force_show(&self) -> Result<(), Error> {

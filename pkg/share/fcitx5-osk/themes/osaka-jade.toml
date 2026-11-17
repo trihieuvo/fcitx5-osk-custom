@@ -1,0 +1,10 @@
+name = "Osaka Jade"
+
+# Palette from the Omarchy "osaka-jade" theme.
+[palette]
+background = "#111c18"
+text = "#C1C497"
+primary = "#509475"
+success = "#549e6a"
+danger = "#FF5345"
+warning = "#E5C736"

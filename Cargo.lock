@@ -1361,7 +1361,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "fcitx5-osk"
+name = "fcitx5-osk-common"
+version = "0.2.1"
+dependencies = [
+ "anyhow",
+ "console-subscriber",
+ "getset",
+ "serde",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbus",
+ "zvariant",
+]
+
+[[package]]
+name = "fcitx5-osk-custom"
 version = "0.2.1"
 dependencies = [
  "anyhow",
@@ -1392,22 +1408,6 @@ dependencies = [
  "wayland-protocols-wlr",
  "x11rb",
  "xkeysym",
- "zbus",
- "zvariant",
-]
-
-[[package]]
-name = "fcitx5-osk-common"
-version = "0.2.1"
-dependencies = [
- "anyhow",
- "console-subscriber",
- "getset",
- "serde",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
  "zbus",
  "zvariant",
 ]

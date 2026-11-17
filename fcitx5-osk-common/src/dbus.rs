@@ -28,9 +28,9 @@ pub mod client {
     use crate::dbus::entity::{Display, Socket, WindowManagerMode};
 
     #[zbus::proxy(
-        default_service = "fyi.fortime.Fcitx5Osk",
-        default_path = "/fyi/fortime/Fcitx5Osk/Controller",
-        interface = "fyi.fortime.Fcitx5Osk.Controller1"
+        default_service = "io.github.trihieuvo.Fcitx5OskCustom",
+        default_path = "/io/github/trihieuvo/Fcitx5OskCustom/Controller",
+        interface = "io.github.trihieuvo.Fcitx5OskCustom.Controller1"
     )]
     pub trait Fcitx5OskControllerService {
         #[tracing::instrument(level = "debug", skip(self), err, ret)]
@@ -113,5 +113,5 @@ pub mod client {
     }
 }
 
-pub const SERVICE_NAME: &str = "fyi.fortime.Fcitx5Osk";
-pub const CONTROLLER_OBJECT_PATH: &str = "/fyi/fortime/Fcitx5Osk/Controller";
+pub const SERVICE_NAME: &str = "io.github.trihieuvo.Fcitx5OskCustom";
+pub const CONTROLLER_OBJECT_PATH: &str = "/io/github/trihieuvo/Fcitx5OskCustom/Controller";

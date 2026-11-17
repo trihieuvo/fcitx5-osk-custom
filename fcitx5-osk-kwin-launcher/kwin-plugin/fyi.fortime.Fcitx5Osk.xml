@@ -1,6 +1,6 @@
 <!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
 <node>
-  <interface name="fyi.fortime.Fcitx5Osk.Controller1">
+  <interface name="io.github.trihieuvo.Fcitx5OskCustom.Controller1">
     <method name="Show">
     </method>
   </interface>
