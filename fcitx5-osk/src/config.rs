@@ -140,6 +140,12 @@ pub struct Config {
     #[serde(default)]
     auto_show_on_focus: bool,
 
+    /// Close the keyboard when Fcitx 5 says the input field lost focus, even if manual mode is
+    /// on. With `auto_show_touch_only`, only if the latest input came from a touchscreen.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default)]
+    auto_hide_on_blur: bool,
+
     /// With `auto_show_on_focus`, only open the keyboard if the latest input came from a
     /// touchscreen. It needs read access to `/dev/input/event*`.
     #[getset(get_copy = "pub", set = "pub")]

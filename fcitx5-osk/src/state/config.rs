@@ -595,11 +595,25 @@ impl ConfigState {
                     should_display: default_should_display,
                 },
                 Field {
+                    name: "Auto hide on blur",
+                    id: "auto_hide_on_blur",
+                    typ: BoolDesc {
+                        cur_value: |state| state.config().auto_hide_on_blur(),
+                        is_enabled: |_state| true,
+                        on_changed: |_, v| Message::from(UpdateConfigEvent::AutoHideOnBlur(v)),
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
                     name: "Auto show: touch only",
                     id: "auto_show_touch_only",
                     typ: BoolDesc {
                         cur_value: |state| state.config().auto_show_touch_only(),
-                        is_enabled: |state| state.config().auto_show_on_focus(),
+                        is_enabled: |state| {
+                            state.config().auto_show_on_focus()
+                                || state.config().auto_hide_on_blur()
+                        },
                         on_changed: |_, v| Message::from(UpdateConfigEvent::AutoShowTouchOnly(v)),
                     }
                     .into(),
@@ -803,6 +817,16 @@ impl ConfigState {
                     Message::Nothing
                 }
             },
+            @AutoHideOnBlur => {
+                config_eq!(auto_hide_on_blur),
+                set_auto_hide_on_blur,
+                |v| {
+                    if v {
+                        crate::input_activity::ensure_started();
+                    }
+                    Message::Nothing
+                }
+            },
             @AutoShowTouchOnly => {
                 config_eq!(auto_show_touch_only),
                 set_auto_show_touch_only,
@@ -938,6 +962,7 @@ pub enum UpdateConfigEvent {
     ManualMode(bool),
     IgnoreFcitxShow(bool),
     AutoShowOnFocus(bool),
+    AutoHideOnBlur(bool),
     AutoShowTouchOnly(bool),
     QuickActionBarState(QuickActionBarState),
     CustomActions(Arc<Vec<String>>),

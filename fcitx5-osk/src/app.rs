@@ -243,7 +243,8 @@ impl<WM> Keyboard<WM> {
         } = async_state;
 
         fcitx5_osk_service_handle.set_manual_mode(config_manager.as_ref().manual_mode(), true);
-        if config_manager.as_ref().auto_show_on_focus()
+        if (config_manager.as_ref().auto_show_on_focus()
+            || config_manager.as_ref().auto_hide_on_blur())
             && config_manager.as_ref().auto_show_touch_only()
         {
             crate::input_activity::ensure_started();
@@ -473,7 +474,15 @@ where
                         self.state.keyboard_mut().set_fcitx5_hidden();
                         // Ignore hide signal from fcitx5 if the keyboard's manual mode is on or the
                         // keyboard is shown by a force show event
-                        if !self.state.active_manual_mode() && !self.state.force_show() {
+                        let config = self.state.config();
+                        let auto_hide = config.auto_hide_on_blur()
+                            && (!config.auto_show_touch_only()
+                                || crate::input_activity::touched_within(
+                                    std::time::Duration::from_secs(2),
+                                ));
+                        if (!self.state.active_manual_mode() || auto_hide)
+                            && !self.state.force_show()
+                        {
                             // Close keyboard only when setting isn't shown
                             if !self.state.window_manager().is_setting_shown() {
                                 task = task.chain(
