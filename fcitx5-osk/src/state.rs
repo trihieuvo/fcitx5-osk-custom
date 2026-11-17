@@ -94,6 +94,7 @@ impl<WM> State<WM> {
             session_manual_mode: None,
             force_show: false,
         };
+        crate::widget::button::set_border_radius(state.config.config().key_border_radius());
         state
             .detect_theme_enabled
             .store(state.is_auto_theme(), Ordering::SeqCst);

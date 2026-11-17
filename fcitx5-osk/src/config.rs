@@ -61,6 +61,11 @@ pub struct Config {
     #[serde(default = "default_theme")]
     theme: String,
 
+    /// Corner radius of keys and buttons.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(default = "default_key_border_radius")]
+    key_border_radius: f32,
+
     #[serde(default)]
     dark_theme: Option<String>,
 
@@ -198,6 +203,10 @@ fn default_holding_timeout() -> Duration {
 
 fn default_hide_delay() -> Duration {
     Duration::from_millis(1000)
+}
+
+fn default_key_border_radius() -> f32 {
+    crate::widget::button::DEFAULT_BORDER_RADIUS
 }
 
 fn default_theme() -> String {

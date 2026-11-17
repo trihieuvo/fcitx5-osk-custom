@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use iced::{
     Background, Border, Color, Element, Event, Length, Padding, Rectangle, Renderer, Size, Theme,
@@ -26,7 +27,18 @@ use iced::{
 
 pub mod key;
 
-pub const BORDER_RADIUS: f32 = 5.;
+pub const DEFAULT_BORDER_RADIUS: f32 = 5.;
+
+static BORDER_RADIUS_BITS: AtomicU32 = AtomicU32::new(DEFAULT_BORDER_RADIUS.to_bits());
+
+/// Corner radius used by all buttons and keys, see `key_border_radius` in the config.
+pub fn border_radius() -> f32 {
+    f32::from_bits(BORDER_RADIUS_BITS.load(Ordering::Relaxed))
+}
+
+pub fn set_border_radius(radius: f32) {
+    BORDER_RADIUS_BITS.store(radius.max(0.).to_bits(), Ordering::Relaxed);
+}
 
 /// Local state of the [`ExtButton`].
 #[derive(Default)]
@@ -499,7 +511,7 @@ pub fn button_container<'a, Message>(
         .center_x(Length::Shrink)
         .style(|theme: &Theme| ContainerStyle {
             background: Some(theme.extended_palette().background.base.color.into()),
-            border: border::rounded(BORDER_RADIUS),
+            border: border::rounded(border_radius()),
             ..Default::default()
         })
         .padding(DEFAULT_PADDING)
@@ -518,7 +530,7 @@ fn button_base_class(theme: &Theme) -> ButtonStyle {
     ButtonStyle {
         background: Some(Background::Color(pair.color)),
         text_color: pair.text,
-        border: Border::default().rounded(BORDER_RADIUS),
+        border: Border::default().rounded(border_radius()),
         ..Default::default()
     }
 }

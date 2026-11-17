@@ -510,7 +510,8 @@ impl<'de> Deserialize<'de> for KeyRowElement {
         D: Deserializer<'de>,
     {
         let s: String = Deserialize::deserialize(deserializer)?;
-        let mut items = s.splitn(2, ':');
+        // `p:<width>` or `k<name>[:<width>[:<height>]]`
+        let mut items = s.splitn(3, ':');
         let typ = items.next().unwrap_or("");
         if typ == "p" {
             let width_u = items.next().unwrap_or("1");
@@ -1573,4 +1574,42 @@ fn custom_action_button<'a, Message: 'a>(
         .center_y(Length::Fill),
     )
     .padding(DEFAULT_PADDING.vertical(0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(s: &str) -> KeyRowElement {
+        toml::Value::String(s.to_string()).try_into().unwrap()
+    }
+
+    #[test]
+    fn key_row_element_with_width_and_height() {
+        assert!(matches!(
+            parse("k1:12:2"),
+            KeyRowElement::Key {
+                width_u: 12,
+                height_u: Some(2),
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse("k1:12"),
+            KeyRowElement::Key {
+                width_u: 12,
+                height_u: None,
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse("k1"),
+            KeyRowElement::Key {
+                width_u: 8,
+                height_u: None,
+                ..
+            }
+        ));
+        assert!(matches!(parse("p:3"), KeyRowElement::Padding(3)));
+    }
 }

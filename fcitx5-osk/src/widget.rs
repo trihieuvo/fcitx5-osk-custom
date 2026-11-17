@@ -1,4 +1,4 @@
-mod button;
+pub mod button;
 mod debugger;
 mod movable;
 mod overlay;

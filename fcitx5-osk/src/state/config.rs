@@ -497,6 +497,30 @@ impl ConfigState {
                     should_display: default_should_display,
                 },
                 Field {
+                    name: "Key corner radius",
+                    id: "key_border_radius",
+                    typ: RangeDesc::<f32> {
+                        init_value: |_state| crate::widget::button::border_radius(),
+                        min_value: |_state| 0.,
+                        max_value: |_state| 30.,
+                        format: |_state, v| format!("{:.1}", v),
+                        is_enabled: |_state| true,
+                        check: |_state, value| (0. ..=30.).contains(&value),
+                        on_changed: |value| {
+                            if let Ok(v) = value.parse::<f32>() {
+                                Message::from(UpdateConfigEvent::KeyBorderRadius(v))
+                            } else {
+                                KeyboardNotification::Error(Arc::new(anyhow::anyhow!(
+                                    "{value} is not a f32"
+                                )))
+                                .into()
+                            }
+                        },
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
                     name: "Placement",
                     id: "placement",
                     typ: OwnedEnumDesc::<Placement> {
@@ -722,6 +746,14 @@ impl ConfigState {
                 set_theme,
                 |_| Message::from(ThemeEvent::Updated)
             },
+            @KeyBorderRadius => {
+                config_eq!(key_border_radius),
+                set_key_border_radius,
+                |v| {
+                    crate::widget::button::set_border_radius(v);
+                    Message::Nothing
+                }
+            },
             @DarkTheme => {option_config_eq!(dark_theme), set_dark_theme},
             @LightTheme => {option_config_eq!(light_theme), set_light_theme},
             @PreferredOutputName => {
@@ -847,6 +879,7 @@ pub enum UpdateConfigEvent {
     Placement(Placement),
     IndicatorDisplay(IndicatorDisplay),
     Theme(String),
+    KeyBorderRadius(f32),
     DarkTheme(String),
     LightTheme(String),
     PreferredOutputName(String),
