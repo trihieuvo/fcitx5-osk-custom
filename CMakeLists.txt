@@ -84,7 +84,7 @@ install(FILES
 )
 install(FILES
         ${CMAKE_SOURCE_DIR}/LICENSE
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/fcitx5-osk
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/fcitx5-osk-custom-git
     COMPONENT Fcitx5Osk
 )
 install(DIRECTORY
