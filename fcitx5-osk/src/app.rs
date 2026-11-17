@@ -253,7 +253,8 @@ impl<WM> Keyboard<WM> {
         let mut init_task = Task::done(StoreEvent::Load(false).into());
         if !wait_for_socket {
             // open indicator if it is not waiting for a socket.
-            init_task = Task::done(WindowManagerEvent::OpenIndicator.into());
+            // Keep the store loading task, otherwise custom themes/layouts are never loaded.
+            init_task = init_task.chain(Task::done(WindowManagerEvent::OpenIndicator.into()));
         }
         (
             Self {
