@@ -455,8 +455,7 @@ impl KeyboardState {
             }
             let id = self.id;
             let symbol = primary.symbol().to_string();
-            let preview = (symbol.chars().count() <= 2
-                && !symbol.trim().is_empty()
+            let preview = (is_previewable(&symbol)
                 && to_modifier_state(&key_value) == ModifierState::NoState)
                 .then(|| KeyPreview {
                     text: symbol,
@@ -512,6 +511,17 @@ impl KeyboardState {
         let is_caps_lock_set = ModifierState::CapsLock.is_set(self.view_flags);
 
         let key = &holding_key_state.key;
+        if !holding_key_state.secondary_shown && crate::widget::button::preview_enabled() {
+            // the enlarged preview of the pressed key replaces the single popup key
+            let shown = if Key::is_shifted(is_shift_set, is_caps_lock_set) {
+                key.secondaries().first().unwrap_or(key.primary())
+            } else {
+                key.primary()
+            };
+            if is_previewable(&shown.symbol()) {
+                return None;
+            }
+        }
         let mut row = Row::new();
         let mut popup_key_area_width = KLength::default();
         if holding_key_state.secondary_shown {
@@ -534,9 +544,16 @@ impl KeyboardState {
             popup_key_area_width += self.popup_key_width_u * unit;
         }
 
-        // calculate position.
+        // the frame around the popup keys
+        let frame = unit.val();
+        popup_key_area_width += unit * 2.;
+
+        // calculate position, centered above the key like the preview.
         let bounds = &holding_key_state.key_widget_event.bounds;
-        let mut left_x = bounds.x;
+        let mut left_x = bounds.x + bounds.width / 2. - popup_key_area_width.val() / 2.;
+        if left_x < 0. {
+            left_x = 0.;
+        }
         if left_x + popup_key_area_width.val() > width.val() {
             left_x = width.val() - popup_key_area_width.val();
             if left_x < 0. {
@@ -544,8 +561,9 @@ impl KeyboardState {
             }
         }
         let mut top_y = bounds.y;
-        if top_y > (self.popup_key_height_u * unit + MARGIN_U * unit).val() {
-            top_y -= (self.popup_key_height_u * unit + MARGIN_U * unit).val();
+        let popup_height = (self.popup_key_height_u * unit).val() + frame * 2.;
+        if top_y > popup_height + (MARGIN_U * unit).val() {
+            top_y -= popup_height + (MARGIN_U * unit).val();
         } else {
             top_y += bounds.height + (MARGIN_U * unit).val();
         }
@@ -553,13 +571,16 @@ impl KeyboardState {
         // calculate padding.
         let padding = Padding::default().left(left_x).top(top_y);
         Some(
-            Container::new(Container::new(row).style(|theme| {
+            Container::new(Container::new(row).padding(frame).style(|theme| {
+                // same look as the key preview: the key color, rounder corners, a soft shadow
                 let mut style = ContainerStyle::default();
-                style.shadow.offset = [1.0, 1.0].into();
-                style.shadow.color = theme.extended_palette().background.weak.color;
-                style.shadow.blur_radius = 5.;
-                style.border = style.border.rounded(5);
-                style.background = Some(theme.extended_palette().primary.weak.color.into());
+                style.shadow.offset = [0.0, 2.0].into();
+                style.shadow.color = iced::Color::from_rgba(0., 0., 0., 0.4);
+                style.shadow.blur_radius = 8.;
+                style.border = style
+                    .border
+                    .rounded(crate::widget::button::border_radius() * 1.5);
+                style.background = Some(theme.extended_palette().background.base.color.into());
                 style
             }))
             .padding(padding)
@@ -1633,6 +1654,11 @@ struct ProcessKeyEventRequest {
 }
 
 const MAX_KEY_REPEAT_MS: u128 = 30_000;
+/// A short symbol worth showing enlarged, not a name like Enter.
+fn is_previewable(symbol: &str) -> bool {
+    symbol.chars().count() <= 2 && !symbol.trim().is_empty()
+}
+
 const KEY_REPEAT_INTERVAL: Duration = Duration::from_millis(60);
 
 fn is_repeatable(key_value: &KeyValue) -> bool {
