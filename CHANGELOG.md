@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1 (fork: trihieuvo/fcitx5-osk-custom)
+
+First release of the fork, based on upstream `0.2.1`.
+
+* Renamed to `fcitx5-osk-custom` (binary, D-Bus service, desktop files and packages) so that it can be installed beside, or instead of, the original.
+* New `osaka-jade` theme. The store is now loaded even without `--wait-for-socket`, so the configured theme is applied.
+* Settings page: grouped into sections, two columns, sliders with proper steps, a restore icon next to values that differ from the restore point, and `Save restore point` / `Restore all` (`restore-point.toml` beside the config file).
+* Sizes: `key_height_scale`, `key_spacing_scale` and `key_border_radius`; layout lengths accept decimals (`k1:12.5:1.5`, `p:0.5`).
+* Auto show on focus and auto hide on blur (`auto_show_on_focus`, `auto_hide_on_blur`, `auto_hide_delay`, `auto_show_touch_only`), with touch detection through evdev.
+* Hold BackSpace, Delete or an arrow key to repeat it.
+* Key feedback: press animation, enlarged key preview (the same style for keys with several choices) and synthesized key sounds (`key_animation`, `key_preview`, `key_sound`, `key_sound_volume`).
+
 ## Changes Since 0.1.0
 
 The current development version is `0.2.0`. Notable changes since `0.1.0` include:

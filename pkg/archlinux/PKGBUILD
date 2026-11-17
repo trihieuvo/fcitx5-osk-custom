@@ -7,12 +7,12 @@ pkgname=(
     fcitx5-osk-custom
     fcitx5-osk-custom-kwin-launcher
 )
-_pkgver=0.2.1
-pkgver=0.2.1
+_pkgver=0.3.1
+pkgver=0.3.1
 pkgrel=1
 pkgdesc='Personal fork of fcitx5-osk, an on-screen keyboard for Fcitx5, with themes, auto show/hide, key feedback and more settings'
 url='https://github.com/trihieuvo/fcitx5-osk-custom'
-source=("$_pkgbase::git+https://github.com/trihieuvo/fcitx5-osk-custom#branch=main")
+source=("$_pkgbase::git+https://github.com/trihieuvo/fcitx5-osk-custom#tag=v${pkgver}")
 arch=('x86_64')
 license=('MIT')
 makedepends=('cargo' 'git' 'cmake')
@@ -20,15 +20,6 @@ makedepends=('cargo' 'git' 'cmake')
 options=(!lto)
 depends=('fcitx5' 'ttf-font-nerd')
 sha256sums=(SKIP)
-
-pkgver() {
-  cd "$srcdir/$_pkgbase"
-  if git describe --long --tags >/dev/null 2>&1; then
-    git describe --long --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
-  else
-    printf '%s.r%s.g%s' "$_pkgver" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-  fi
-}
 
 prepare() {
   cd "$_pkgbase"
