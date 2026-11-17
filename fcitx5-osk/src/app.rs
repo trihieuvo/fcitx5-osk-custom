@@ -462,6 +462,11 @@ where
                                 || crate::input_activity::touched_within(
                                     std::time::Duration::from_secs(2),
                                 ));
+                        tracing::debug!(
+                            "Fcitx5 asks to show the keyboard: opened={opened}, auto_show={auto_show}, last_touch_age={:?}, last_other_age={:?}",
+                            crate::input_activity::last_touch_age(),
+                            crate::input_activity::last_other_age()
+                        );
                         if (!self.state.active_manual_mode()
                             && (opened || !config.ignore_fcitx_show()))
                             || auto_show
@@ -480,16 +485,18 @@ where
                                 || crate::input_activity::touched_within(
                                     std::time::Duration::from_secs(2),
                                 ));
+                        let auto_hide_delay = config.auto_hide_delay();
                         if (!self.state.active_manual_mode() || auto_hide)
                             && !self.state.force_show()
                         {
                             // Close keyboard only when setting isn't shown
                             if !self.state.window_manager().is_setting_shown() {
-                                task = task.chain(
-                                    self.state
-                                        .window_manager_mut()
-                                        .close_keyboard(CloseOpSource::Fcitx5),
-                                );
+                                let wm = self.state.window_manager_mut();
+                                task = task.chain(if auto_hide {
+                                    wm.close_keyboard_with_delay(auto_hide_delay)
+                                } else {
+                                    wm.close_keyboard(CloseOpSource::Fcitx5)
+                                });
                             }
                         }
                     }

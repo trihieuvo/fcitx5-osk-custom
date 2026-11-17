@@ -644,6 +644,13 @@ where
         task
     }
 
+    /// Close the keyboard as the fcitx5 hide signal does, but with a custom delay.
+    pub fn close_keyboard_with_delay(&mut self, delay: Duration) -> Task<WM::Message> {
+        self.keyboard_window_state
+            .close_with_delay(delay, CloseOpSource::Fcitx5)
+            .map_task()
+    }
+
     pub fn close_keyboard(&mut self, source: CloseOpSource) -> Task<WM::Message> {
         match source {
             CloseOpSource::Fcitx5 => self

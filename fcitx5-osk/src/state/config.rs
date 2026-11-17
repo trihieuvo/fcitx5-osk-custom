@@ -3,6 +3,7 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     str::FromStr,
     sync::Arc,
+    time::Duration,
 };
 
 use iced::Task;
@@ -606,6 +607,32 @@ impl ConfigState {
                     should_display: default_should_display,
                 },
                 Field {
+                    name: "Auto hide delay (ms)",
+                    id: "auto_hide_delay",
+                    typ: RangeDesc::<f32> {
+                        init_value: |state| state.config().auto_hide_delay().as_millis() as f32,
+                        min_value: |_state| 0.,
+                        max_value: |_state| 2000.,
+                        format: |_state, v| format!("{:.0}", v),
+                        is_enabled: |state| state.config().auto_hide_on_blur(),
+                        check: |_state, value| (0. ..=2000.).contains(&value),
+                        on_changed: |value| {
+                            if let Ok(v) = value.parse::<f32>() {
+                                Message::from(UpdateConfigEvent::AutoHideDelay(
+                                    Duration::from_millis(v as u64),
+                                ))
+                            } else {
+                                KeyboardNotification::Error(Arc::new(anyhow::anyhow!(
+                                    "{value} is not a f32"
+                                )))
+                                .into()
+                            }
+                        },
+                    }
+                    .into(),
+                    should_display: default_should_display,
+                },
+                Field {
                     name: "Auto show: touch only",
                     id: "auto_show_touch_only",
                     typ: BoolDesc {
@@ -827,6 +854,11 @@ impl ConfigState {
                     Message::Nothing
                 }
             },
+            @AutoHideDelay => {
+                config_eq!(auto_hide_delay),
+                set_auto_hide_delay,
+                |_| Message::Nothing
+            },
             @AutoShowTouchOnly => {
                 config_eq!(auto_show_touch_only),
                 set_auto_show_touch_only,
@@ -848,7 +880,7 @@ impl ConfigState {
                 |v| Message::from(StoreEvent::UpdateCustomActions(v))
             },
             UpdateConfigEvent::ChangeTempText {key, init_value, value} => {
-                tracing::error!("Update temp_text[{key}] to {value}, init value[{init_value}]");
+                tracing::debug!("Update temp_text[{key}] to {value}, init value[{init_value}]");
                 self.temp_texts.insert(key, (init_value, value));
                 (false, None)
             },
@@ -963,6 +995,7 @@ pub enum UpdateConfigEvent {
     IgnoreFcitxShow(bool),
     AutoShowOnFocus(bool),
     AutoHideOnBlur(bool),
+    AutoHideDelay(Duration),
     AutoShowTouchOnly(bool),
     QuickActionBarState(QuickActionBarState),
     CustomActions(Arc<Vec<String>>),

@@ -146,6 +146,12 @@ pub struct Config {
     #[serde(default)]
     auto_hide_on_blur: bool,
 
+    /// How long to wait before closing the keyboard when `auto_hide_on_blur` is on. It should
+    /// be long enough to let a focus change between two input fields cancel the close.
+    #[getset(get_copy = "pub", set = "pub")]
+    #[serde(with = "humantime_serde", default = "default_auto_hide_delay")]
+    auto_hide_delay: Duration,
+
     /// With `auto_show_on_focus`, only open the keyboard if the latest input came from a
     /// touchscreen. It needs read access to `/dev/input/event*`.
     #[getset(get_copy = "pub", set = "pub")]
@@ -225,6 +231,10 @@ fn default_hide_delay() -> Duration {
 
 fn default_key_border_radius() -> f32 {
     crate::widget::button::DEFAULT_BORDER_RADIUS
+}
+
+fn default_auto_hide_delay() -> Duration {
+    Duration::from_millis(150)
 }
 
 fn default_true() -> bool {

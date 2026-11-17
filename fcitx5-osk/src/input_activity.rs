@@ -79,11 +79,22 @@ async fn watch(device: Device, kind: Kind) {
     loop {
         match stream.next_event().await {
             Ok(event) => {
-                if matches!(
-                    event.event_type(),
-                    EventType::KEY | EventType::RELATIVE | EventType::ABSOLUTE
-                ) {
-                    target.store(now_ms(), Ordering::Relaxed);
+                // Mouse and touchpad motion is ignored on purpose: a mouse that jitters on its
+                // own must not hide the fact that the user is touching the screen. Key and
+                // button presses still count.
+                let counted = match kind {
+                    Kind::Touch => {
+                        matches!(event.event_type(), EventType::KEY | EventType::ABSOLUTE)
+                    }
+                    Kind::Other => event.event_type() == EventType::KEY,
+                };
+                if counted {
+                    let now = now_ms();
+                    // Log only the first event after a quiet moment.
+                    if now.saturating_sub(target.load(Ordering::Relaxed)) > 1000 {
+                        tracing::debug!("Input event from {kind:?} device {name}");
+                    }
+                    target.store(now, Ordering::Relaxed);
                 }
             }
             Err(e) => {
@@ -130,6 +141,18 @@ pub fn ensure_started() {
             tracing::warn!("Unable to start the input activity thread: {e}");
         }
     });
+}
+
+/// How long ago the last touchscreen event happened, if there was one.
+pub fn last_touch_age() -> Option<Duration> {
+    let touch = LAST_TOUCH.load(Ordering::Relaxed);
+    (touch != 0).then(|| Duration::from_millis(now_ms().saturating_sub(touch)))
+}
+
+/// How long ago the last mouse, touchpad or keyboard event happened, if there was one.
+pub fn last_other_age() -> Option<Duration> {
+    let other = LAST_OTHER.load(Ordering::Relaxed);
+    (other != 0).then(|| Duration::from_millis(now_ms().saturating_sub(other)))
 }
 
 /// Returns true if the latest input event within `window` came from a touchscreen.
